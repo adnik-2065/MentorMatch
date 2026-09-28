@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ProgressRail, type RailStep } from "./ProgressRail";
 import { ProfileStep, RoleStep, VerifyStep } from "./SharedSteps";
 import { LearnTopicsStep, MatchStep, StuckStep } from "./JuniorSteps";
-import { AvailabilityStep, SkillProofStep, TeachTopicsStep, VivaStep } from "./MentorSteps";
+import { AvailabilityStep, SkillProofStep, TeachTopicsStep } from "./MentorSteps";
 import { CompleteStep } from "./CompleteStep";
 import { IconArrowLeft } from "@/components/icons";
 import { initialState, type OnboardingState } from "@/lib/onboarding";
@@ -24,9 +24,8 @@ const JUNIOR: RailStep[] = [
 
 const MENTOR: RailStep[] = [
   { key: "teach", label: "Topics", hint: "What you can teach" },
-  { key: "proof", label: "SkillProof", hint: "Connect GitHub" },
-  { key: "viva", label: "Quick viva", hint: "3 questions on your code" },
-  { key: "slots", label: "Availability", hint: "Your weekly slots" },
+  { key: "proof", label: "SkillProof", hint: "Add GitHub" },
+  { key: "slots", label: "Availability", hint: "10 AM – 10 PM slots" },
   { key: "done", label: "Done", hint: "You're bookable" },
 ];
 
@@ -67,8 +66,6 @@ export function OnboardingDashboard() {
         return <TeachTopicsStep state={state} patch={patch} next={next} />;
       case "proof":
         return <SkillProofStep state={state} patch={patch} next={next} />;
-      case "viva":
-        return <VivaStep state={state} patch={patch} next={next} />;
       case "slots":
         return <AvailabilityStep state={state} patch={patch} next={next} />;
       case "done":

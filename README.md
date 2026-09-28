@@ -119,12 +119,11 @@ Both roles start the same way — **sign up with your college email, verify the 
 |---|------|----------------|
 | 1 | Toggle **"I want to mentor"** | One switch, same account |
 | 2 | Add topics you can teach | The claim — unverified for now |
-| 3 | **SkillProof** — connect GitHub or upload a project | AI reads your real code |
-| 4 | Take the 5-question viva on your own code | Turns the claim into a verified badge |
-| 5 | Set your weekly availability | Without slots you're invisible in search |
-| 6 | Done — you're listed and bookable | First request usually arrives same day |
+| 3 | **SkillProof** — add your GitHub | AI reads your real code and turns the claim into a verified badge |
+| 4 | Set your weekly availability (10 AM – 10 PM) | Without slots you're invisible in search |
+| 5 | Done — you're listed and bookable | First request usually arrives same day |
 
-> Steps 3–4 are skippable; you just stay `Self-claimed` and rank lower than verified mentors. That's the nudge, not a wall.
+> Step 3 is skippable; you just stay `Self-claimed` and rank lower than verified mentors. That's the nudge, not a wall. The adaptive viva that upgrades a badge to `High` confidence runs later from your profile — onboarding stays short on purpose.
 
 ### First-week nudges
 
@@ -184,7 +183,7 @@ Aarav S. · 🐳 Docker  🔧 Git  ☕ Java              ● Online now
   ✓ open   ✗ booked                    [ Book a slot ]
 ```
 
-- Mentors define **recurring weekly availability** (e.g. Mon–Fri, 6–9 PM) and can block one-off dates for exams or fests.
+- Mentors define **recurring weekly availability** in one-hour blocks between **10 AM and 10 PM** (e.g. Mon–Fri, 6–9 PM) and can block one-off dates for exams or fests. Quick-fill presets — *weekday evenings*, *weekend mornings*, *after classes*, *late nights* — cover most people in one tap.
 - Slot length follows the session type: quick doubt (15m), deep dive (45m), code review, project guidance.
 - **Double-booking is impossible** — a slot is locked at the database level the moment it's confirmed.
 - **Instant Help queue** for urgent blockers — no slot needed, mentors currently marked online get pinged directly.

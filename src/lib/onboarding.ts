@@ -29,13 +29,6 @@ export type Triage = {
   mentors: { mentor: Mentor; reason: string }[];
 };
 
-export type VivaQuestion = {
-  topic: string;
-  prompt: string;
-  options: string[];
-  answer: number;
-};
-
 export type OnboardingState = {
   // shared
   email: string;
@@ -55,7 +48,6 @@ export type OnboardingState = {
   teachTopics: string[];
   github: string;
   proofStatus: "idle" | "analysing" | "done" | "skipped";
-  vivaAnswers: (number | null)[];
   availability: Record<string, string[]>;
 };
 
@@ -75,28 +67,71 @@ export const initialState: OnboardingState = {
   teachTopics: [],
   github: "",
   proofStatus: "idle",
-  vivaAnswers: [null, null, null],
   availability: {},
 };
 
-export const TOPICS = [
-  "C",
-  "C++",
-  "Java",
-  "Python",
-  "JavaScript",
-  "React",
-  "Node.js",
-  "DSA",
-  "DBMS",
-  "SQL",
-  "OS",
-  "Computer Networks",
-  "Git",
-  "Docker",
-  "Linux",
-  "Machine Learning",
+/** Grouped so the picker can show sections, and searched as one flat list. */
+export const TOPIC_GROUPS: { name: string; topics: string[] }[] = [
+  {
+    name: "Languages",
+    topics: ["C", "C++", "Java", "Python", "JavaScript", "TypeScript", "C#", "Go", "Rust", "Kotlin", "PHP", "R"],
+  },
+  {
+    name: "Core CS",
+    topics: [
+      "DSA",
+      "DBMS",
+      "Operating Systems",
+      "Computer Networks",
+      "OOP",
+      "System Design",
+      "Compiler Design",
+      "Theory of Computation",
+      "Competitive Programming",
+    ],
+  },
+  {
+    name: "Web & Mobile",
+    topics: [
+      "HTML & CSS",
+      "React",
+      "Next.js",
+      "Node.js",
+      "Express",
+      "Angular",
+      "Vue",
+      "Django",
+      "Flask",
+      "Spring Boot",
+      "React Native",
+      "Flutter",
+      "Android",
+    ],
+  },
+  {
+    name: "Data & AI",
+    topics: [
+      "SQL",
+      "MongoDB",
+      "Machine Learning",
+      "Deep Learning",
+      "Data Science",
+      "NumPy & Pandas",
+      "Power BI",
+      "Excel",
+    ],
+  },
+  {
+    name: "Tools & DevOps",
+    topics: ["Git", "GitHub", "Docker", "Kubernetes", "Linux", "AWS", "Firebase", "CI/CD", "Postman"],
+  },
+  {
+    name: "Career",
+    topics: ["Placement Prep", "Resume Review", "Interview Prep", "Open Source", "Hackathons", "Internships"],
+  },
 ];
+
+export const TOPICS = TOPIC_GROUPS.flatMap((g) => g.topics);
 
 export const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
@@ -104,7 +139,44 @@ export const BRANCHES = ["CSE", "IT", "ECE", "EEE", "Mechanical", "Civil", "Othe
 
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export const HOURS = ["4 PM", "5 PM", "6 PM", "7 PM", "8 PM", "9 PM"];
+/** One-hour slots from 10 AM to 10 PM — each label is the hour the slot starts. */
+export const HOURS = [
+  "10 AM",
+  "11 AM",
+  "12 PM",
+  "1 PM",
+  "2 PM",
+  "3 PM",
+  "4 PM",
+  "5 PM",
+  "6 PM",
+  "7 PM",
+  "8 PM",
+  "9 PM",
+];
+
+export const AVAILABILITY_PRESETS: { label: string; days: string[]; hours: string[] }[] = [
+  {
+    label: "Weekday evenings",
+    days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    hours: ["6 PM", "7 PM", "8 PM"],
+  },
+  {
+    label: "Weekend mornings",
+    days: ["Sat", "Sun"],
+    hours: ["10 AM", "11 AM", "12 PM"],
+  },
+  {
+    label: "After classes",
+    days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    hours: ["4 PM", "5 PM"],
+  },
+  {
+    label: "Late nights",
+    days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    hours: ["8 PM", "9 PM"],
+  },
+];
 
 export const MENTORS: Mentor[] = [
   {
@@ -145,7 +217,7 @@ export const MENTORS: Mentor[] = [
     branch: "CSE",
     rating: 4.6,
     reviews: 19,
-    skills: ["C", "OS", "DSA"],
+    skills: ["C", "Operating Systems", "DSA"],
     verified: "medium",
     online: true,
     slots: [
@@ -283,38 +355,3 @@ export function analyseRepos(topics: string[]) {
     confidence: (evidence[topic] ? "High" : "Medium") as "High" | "Medium",
   }));
 }
-
-export const VIVA: VivaQuestion[] = [
-  {
-    topic: "Docker",
-    prompt:
-      "Your compose file mounts the source directory as a volume. What breaks if you remove that mount, and why did you add it?",
-    options: [
-      "Nothing — the image already contains the code",
-      "Code edits stop appearing until you rebuild the image",
-      "The container loses network access to other services",
-    ],
-    answer: 1,
-  },
-  {
-    topic: "Docker",
-    prompt: "Your Dockerfile uses a multi-stage build. What is the actual benefit here?",
-    options: [
-      "It builds faster on the first run",
-      "Build tools stay out of the final image, so it ships smaller",
-      "It allows running multiple containers from one file",
-    ],
-    answer: 1,
-  },
-  {
-    topic: "Git",
-    prompt:
-      "You rebased a branch that was already pushed. What problem does that create for a teammate?",
-    options: [
-      "None, rebase is always safe",
-      "Their history diverges — the rewritten commits have new hashes",
-      "Git blocks the rebase automatically",
-    ],
-    answer: 1,
-  },
-];

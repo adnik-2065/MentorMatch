@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Card, Chip, ChoiceGroup, Stars, StepHeading, Textarea } from "@/components/ui";
+import { Badge, Button, Card, Stars, StepHeading, Textarea } from "@/components/ui";
+import { TopicPicker } from "./TopicPicker";
 import { IconArrowRight, IconDot, IconShield, IconSparkle } from "@/components/icons";
-import { TOPICS, runTriage, type Mentor, type OnboardingState } from "@/lib/onboarding";
+import { runTriage, type Mentor, type OnboardingState } from "@/lib/onboarding";
 
 type Patch = (patch: Partial<OnboardingState>) => void;
 
@@ -30,16 +31,12 @@ export function LearnTopicsStep({
         subtitle="Pick a few. This drives your feed and the mentors we surface first."
       />
 
-      <ChoiceGroup label="Topics" hint="Tap to select. You can change these any time.">
-        {TOPICS.map((topic) => (
-          <Chip
-            key={topic}
-            label={topic}
-            selected={state.learnTopics.includes(topic)}
-            onClick={() => toggle(topic)}
-          />
-        ))}
-      </ChoiceGroup>
+      <TopicPicker
+        label="Topics"
+        hint="Search or browse. Can't find it? Type it and add your own."
+        selected={state.learnTopics}
+        onToggle={toggle}
+      />
 
       <div className="flex flex-wrap items-center gap-4">
         <Button disabled={state.learnTopics.length === 0} onClick={next}>
