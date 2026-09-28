@@ -3,39 +3,74 @@
 import { useMemo, useState } from "react";
 import { Chip } from "@/components/ui";
 import { IconSearch, IconPlus, IconClose } from "@/components/icons";
-import { TOPIC_GROUPS } from "@/lib/onboarding";
+import { ALL_TOPIC_GROUPS, BRANCH_TOPICS, topicGroupsFor } from "@/lib/onboarding";
 
 export function TopicPicker({
   label,
   hint,
+  branch,
   selected,
   onToggle,
 }: {
   label: string;
   hint?: string;
+  branch: string;
   selected: string[];
   onToggle: (topic: string) => void;
 }) {
   const [query, setQuery] = useState("");
-  const q = query.trim().toLowerCase();
+  // "Other" and unknown branches have no subject list of their own — show everything.
+  const hasOwnSubjects = Boolean(BRANCH_TOPICS[branch]);
+  const [allBranches, setAllBranches] = useState(!hasOwnSubjects);
 
-  // Custom topics the user typed in aren't in TOPIC_GROUPS, so they get their own row.
-  const custom = useMemo(
-    () => selected.filter((t) => !TOPIC_GROUPS.some((g) => g.topics.includes(t))),
-    [selected],
+  const q = query.trim().toLowerCase();
+  const scoped = allBranches || !hasOwnSubjects;
+
+  const base = useMemo(
+    () => (scoped ? ALL_TOPIC_GROUPS : topicGroupsFor(branch)),
+    [scoped, branch],
   );
 
+  // Custom topics the user typed in aren't in any group, so they get their own row.
+  const custom = useMemo(() => {
+    const known = new Set(ALL_TOPIC_GROUPS.flatMap((g) => g.topics));
+    return selected.filter((t) => !known.has(t));
+  }, [selected]);
+
+  // Anything picked before switching branch stays visible, otherwise it looks lost.
+  const offScope = useMemo(() => {
+    const inScope = new Set(base.flatMap((g) => g.topics));
+    return selected.filter((t) => !inScope.has(t) && !custom.includes(t));
+  }, [base, selected, custom]);
+
+  const filter = (groups: { name: string; topics: string[] }[]) =>
+    !q
+      ? groups
+      : groups
+          .map((g) => ({ ...g, topics: g.topics.filter((t) => t.toLowerCase().includes(q)) }))
+          .filter((g) => g.topics.length > 0);
+
   const groups = useMemo(() => {
-    const all = custom.length ? [{ name: "Added by you", topics: custom }, ...TOPIC_GROUPS] : TOPIC_GROUPS;
-    if (!q) return all;
-    return all
-      .map((g) => ({ ...g, topics: g.topics.filter((t) => t.toLowerCase().includes(q)) }))
-      .filter((g) => g.topics.length > 0);
-  }, [q, custom]);
+    const extras = [
+      ...(custom.length ? [{ name: "Added by you", topics: custom }] : []),
+      ...(offScope.length ? [{ name: "From other branches", topics: offScope }] : []),
+    ];
+    return filter([...extras, ...base]);
+  }, [base, custom, offScope, q]);
 
   const matchCount = groups.reduce((n, g) => n + g.topics.length, 0);
-  const exactExists = TOPIC_GROUPS.concat({ name: "", topics: custom }).some((g) =>
-    g.topics.some((t) => t.toLowerCase() === q),
+
+  // When a search finds nothing in-branch, say how many hits exist everywhere else.
+  const elsewhere = useMemo(() => {
+    if (scoped || !q || matchCount > 0) return 0;
+    return ALL_TOPIC_GROUPS.reduce(
+      (n, g) => n + g.topics.filter((t) => t.toLowerCase().includes(q)).length,
+      0,
+    );
+  }, [scoped, q, matchCount]);
+
+  const exactExists = [...ALL_TOPIC_GROUPS.flatMap((g) => g.topics), ...custom].some(
+    (t) => t.toLowerCase() === q,
   );
 
   const addCustom = () => {
@@ -72,7 +107,7 @@ export function TopicPicker({
           id="topic-search"
           type="search"
           value={query}
-          placeholder="Search topics — try docker, java, placement…"
+          placeholder="Search subjects — try surveying, thermo, docker…"
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -93,6 +128,31 @@ export function TopicPicker({
           </button>
         )}
       </div>
+
+      {/* Scope — your branch by default, everything if you want to cross over */}
+      {hasOwnSubjects && (
+        <div role="radiogroup" aria-label="Which subjects to show" className="flex flex-wrap gap-2">
+          {[
+            { value: false, label: `${branch} subjects` },
+            { value: true, label: "All branches" },
+          ].map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              role="radio"
+              aria-checked={allBranches === option.value}
+              onClick={() => setAllBranches(option.value)}
+              className={`inline-flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
+                allBranches === option.value
+                  ? "border-primary bg-primary-soft font-medium text-primary-text"
+                  : "border-line bg-surface text-muted hover:border-line-strong hover:text-fg"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <p aria-live="polite" className="sr-only">
         {q ? `${matchCount} topics match ${query}` : ""}
@@ -122,16 +182,29 @@ export function TopicPicker({
       ) : (
         <div className="rounded-lg border border-dashed border-line bg-inset p-5 text-center">
           <p className="text-sm text-muted">
-            No topic matches <span className="font-medium text-fg">&ldquo;{query}&rdquo;</span>
+            No subject in {scoped ? "our list" : branch} matches{" "}
+            <span className="font-medium text-fg">&ldquo;{query}&rdquo;</span>
           </p>
-          <button
-            type="button"
-            onClick={addCustom}
-            className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-fg transition-colors duration-200 outline-none hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
-          >
-            <IconPlus />
-            Add &ldquo;{query.trim()}&rdquo; as a topic
-          </button>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {elsewhere > 0 && (
+              <button
+                type="button"
+                onClick={() => setAllBranches(true)}
+                className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-primary bg-primary-soft px-4 text-sm font-medium text-primary-text transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+              >
+                <IconSearch />
+                {elsewhere} in other branches
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={addCustom}
+              className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-fg transition-colors duration-200 outline-none hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+            >
+              <IconPlus />
+              Add &ldquo;{query.trim()}&rdquo; as a topic
+            </button>
+          </div>
         </div>
       )}
     </section>

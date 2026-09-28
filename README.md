@@ -145,7 +145,23 @@ Both roles start the same way — **sign up with your college email, verify the 
 
 ### 🔍 Discovery & Matching
 
-- Search by **topic** — `C`, `Java`, `Python`, `Docker`, `Git`, `DBMS`, `OS`, `DSA`, `React`, `Linux`, `Networking`, and anything else the community adds.
+- **Subjects follow your branch.** A Civil student sees `Structural Analysis`, `Surveying`, `STAAD.Pro`, `Estimation & Costing` — not Kubernetes. Mechanical sees `Thermodynamics`, `SolidWorks`, `Theory of Machines`; Electrical sees `Electrical Machines`, `Power Systems`, `PLC & SCADA`; ECE sees `Embedded C`, `VLSI Design`, `Digital Signal Processing`. Ten branches ship with their own subject lists:
+
+  | Branch | Sample subjects |
+  |--------|-----------------|
+  | CSE / IT | DSA, DBMS, Operating Systems, React, Docker, Machine Learning, Cybersecurity |
+  | ECE | Analog & Digital Electronics, Signals & Systems, Embedded C, VLSI Design, Verilog, MATLAB |
+  | Electrical | Electrical Machines, Power Systems, Power Electronics, Control Systems, ETAP, PLC & SCADA |
+  | Mechanical | Thermodynamics, Heat Transfer, Machine Design, Manufacturing, SolidWorks, ANSYS |
+  | Civil | Structural Analysis, Concrete Technology, Geotechnical, Surveying, STAAD.Pro, Revit |
+  | Chemical | Mass Transfer, Reaction Engineering, Process Control, Aspen HYSYS |
+  | Aerospace | Aerodynamics, Propulsion, Aircraft Structures, CFD, CATIA |
+  | Automobile | IC Engines, Vehicle Dynamics, EV Technology, Automotive Electronics |
+  | Biotech | Biochemistry, Genetic Engineering, Bioprocess Engineering, Bioinformatics |
+  | Everyone | Engineering Mathematics, Engineering Drawing, GATE Prep, Placement Prep, Aptitude, Internships |
+
+- **Cross-branch is one tap away** — the picker defaults to your branch but a single toggle opens every branch, because a Mechanical student who wants Python shouldn't hit a wall. Search spans whatever scope you're in, and if a search finds nothing in your branch it tells you how many matches exist elsewhere.
+- Anything missing? **Type it and add it.** Custom subjects join the searchable list.
 - **Top-rated mentors appear first.** Results are sorted by MentorScore by default, so the best mentors for a topic are the ones you see at the top of the page — no scrolling, no guessing.
 
 ```

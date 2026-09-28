@@ -32,8 +32,9 @@ export function LearnTopicsStep({
       />
 
       <TopicPicker
-        label="Topics"
-        hint="Search or browse. Can't find it? Type it and add your own."
+        label="Subjects"
+        hint="Your branch first. Switch to all branches, or type a subject we've missed."
+        branch={state.branch}
         selected={state.learnTopics}
         onToggle={toggle}
       />
@@ -54,6 +55,20 @@ export function LearnTopicsStep({
   );
 }
 
+/** The example doubt is worth tailoring — it's what tells people how much detail to give. */
+const STUCK_EXAMPLES: Record<string, string> = {
+  CSE: "Example: my docker container exits immediately and my code changes never show up",
+  IT: "Example: my docker container exits immediately and my code changes never show up",
+  ECE: "Example: my Arduino interrupt fires twice for a single button press",
+  Electrical: "Example: my transformer's efficiency comes out above 100% in the no-load test",
+  Mechanical: "Example: I can't figure out which control volume to take for this steam turbine problem",
+  Civil: "Example: my STAAD model shows huge moments at the support and I think my supports are wrong",
+  Chemical: "Example: my mass balance doesn't close across the distillation column",
+  Aerospace: "Example: my XFLR5 polar looks wrong past stall and I don't know what to change",
+  Automobile: "Example: I don't understand how gear ratios change the torque at the wheels",
+  Biotech: "Example: my PCR gives no band and I can't tell if it's the primers or the annealing temperature",
+};
+
 export function StuckStep({
   state,
   patch,
@@ -69,7 +84,9 @@ export function StuckStep({
     setRunning(true);
     // Stands in for POST /api/match — Gemini reads the text and returns the concept gap.
     setTimeout(() => {
-      patch({ triage: runTriage(state.stuckOn) });
+      patch({
+        triage: runTriage(state.stuckOn, { branch: state.branch, topics: state.learnTopics }),
+      });
       setRunning(false);
       next();
     }, 1400);
@@ -85,7 +102,7 @@ export function StuckStep({
       <Textarea
         id="stuck"
         label="Your problem"
-        hint="Example: my docker container exits immediately and my code changes never show up"
+        hint={STUCK_EXAMPLES[state.branch] ?? STUCK_EXAMPLES.CSE}
         rows={5}
         value={state.stuckOn}
         placeholder="Describe it the way you'd say it out loud…"

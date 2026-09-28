@@ -44,8 +44,9 @@ export function TeachTopicsStep({
       />
 
       <TopicPicker
-        label="Topics you can mentor in"
-        hint="Search or browse. Can't find it? Type it and add your own."
+        label="Subjects you can mentor in"
+        hint="Your branch first. Switch to all branches, or type a subject we've missed."
+        branch={state.branch}
         selected={state.teachTopics}
         onToggle={toggle}
       />
@@ -75,6 +76,8 @@ export function SkillProofStep({
   next: () => void;
 }) {
   const findings = state.proofStatus === "done" ? analyseRepos(state.teachTopics) : [];
+  // Core branches often have nothing on GitHub — say so instead of making skipping feel like failure.
+  const codeBranch = ["CSE", "IT", "ECE"].includes(state.branch);
 
   const analyse = () => {
     patch({ proofStatus: "analysing" });
@@ -86,7 +89,11 @@ export function SkillProofStep({
     <div className="space-y-7">
       <StepHeading
         title="Add GitHub"
-        subtitle="We read your public repos and pull out what you demonstrably did — that's what turns a claim into a verified badge."
+        subtitle={
+          codeBranch
+            ? "We read your public repos and pull out what you demonstrably did — that's what turns a claim into a verified badge."
+            : "Optional for your branch. If you have code on GitHub we'll verify it — otherwise skip, and your badge comes from rated sessions instead."
+        }
       />
 
       {state.proofStatus === "skipped" ? (

@@ -70,8 +70,15 @@ export const initialState: OnboardingState = {
   availability: {},
 };
 
-/** Grouped so the picker can show sections, and searched as one flat list. */
-export const TOPIC_GROUPS: { name: string; topics: string[] }[] = [
+export type TopicGroup = { name: string; topics: string[] };
+
+/*
+ * Topics are per branch — a Civil junior should never have to scroll past
+ * Kubernetes to find Surveying. Group names are unique across every branch,
+ * because the "all branches" view lists them flat.
+ */
+
+const SOFTWARE_GROUPS: TopicGroup[] = [
   {
     name: "Languages",
     topics: ["C", "C++", "Java", "Python", "JavaScript", "TypeScript", "C#", "Go", "Rust", "Kotlin", "PHP", "R"],
@@ -91,7 +98,7 @@ export const TOPIC_GROUPS: { name: string; topics: string[] }[] = [
     ],
   },
   {
-    name: "Web & Mobile",
+    name: "Web & mobile",
     topics: [
       "HTML & CSS",
       "React",
@@ -125,17 +132,368 @@ export const TOPIC_GROUPS: { name: string; topics: string[] }[] = [
     name: "Tools & DevOps",
     topics: ["Git", "GitHub", "Docker", "Kubernetes", "Linux", "AWS", "Firebase", "CI/CD", "Postman"],
   },
+];
+
+const NETWORKS_SECURITY: TopicGroup = {
+  name: "Networks & security",
+  topics: [
+    "Cybersecurity",
+    "Ethical Hacking",
+    "Network Security",
+    "Cloud Computing",
+    "Cryptography",
+    "Wireshark",
+    "Kali Linux",
+    "System Administration",
+  ],
+};
+
+/** Every branch gets these on top of its own subjects. */
+const COMMON_GROUPS: TopicGroup[] = [
   {
-    name: "Career",
-    topics: ["Placement Prep", "Resume Review", "Interview Prep", "Open Source", "Hackathons", "Internships"],
+    name: "Engineering basics",
+    topics: [
+      "Engineering Mathematics",
+      "Engineering Physics",
+      "Engineering Chemistry",
+      "Engineering Drawing",
+      "Basic Electrical Engineering",
+      "Environmental Science",
+      "Technical Communication",
+    ],
+  },
+  {
+    name: "Career & placements",
+    topics: [
+      "Placement Prep",
+      "Resume Review",
+      "Interview Prep",
+      "Aptitude & Reasoning",
+      "GATE Prep",
+      "GRE & Higher Studies",
+      "Internships",
+      "Hackathons",
+      "Open Source",
+      "Core Company Prep",
+    ],
   },
 ];
 
-export const TOPICS = TOPIC_GROUPS.flatMap((g) => g.topics);
+export const BRANCH_TOPICS: Record<string, TopicGroup[]> = {
+  CSE: SOFTWARE_GROUPS,
+  IT: [...SOFTWARE_GROUPS, NETWORKS_SECURITY],
+  ECE: [
+    {
+      name: "Electronics core",
+      topics: [
+        "Analog Electronics",
+        "Digital Electronics",
+        "Electronic Devices & Circuits",
+        "Signals & Systems",
+        "Control Systems",
+        "Network Analysis",
+        "Electromagnetic Theory",
+      ],
+    },
+    {
+      name: "Communication systems",
+      topics: [
+        "Analog Communication",
+        "Digital Communication",
+        "Wireless & Mobile Communication",
+        "Antennas & Wave Propagation",
+        "Optical Communication",
+        "Satellite Communication",
+        "Digital Signal Processing",
+      ],
+    },
+    {
+      name: "Embedded & VLSI",
+      topics: [
+        "Microprocessors",
+        "Microcontrollers",
+        "Embedded C",
+        "VLSI Design",
+        "Verilog",
+        "VHDL",
+        "Arduino",
+        "Raspberry Pi",
+        "IoT",
+        "PCB Design",
+      ],
+    },
+    {
+      name: "ECE tools",
+      topics: ["MATLAB", "Simulink", "Proteus", "Multisim", "Cadence", "Xilinx Vivado", "LTspice"],
+    },
+  ],
+  Electrical: [
+    {
+      name: "Power & machines",
+      topics: [
+        "Electrical Machines",
+        "Power Systems",
+        "Power Electronics",
+        "Switchgear & Protection",
+        "Transmission & Distribution",
+        "High Voltage Engineering",
+        "Electric Drives",
+        "Renewable Energy",
+        "Electrical Estimation",
+      ],
+    },
+    {
+      name: "Circuits & control",
+      topics: [
+        "Network Analysis",
+        "Control Systems",
+        "Electrical Measurements",
+        "Signals & Systems",
+        "Analog Electronics",
+        "Digital Electronics",
+        "Electromagnetic Fields",
+      ],
+    },
+    {
+      name: "Automation & electrical tools",
+      topics: [
+        "MATLAB",
+        "Simulink",
+        "PLC & SCADA",
+        "ETAP",
+        "PSpice",
+        "AutoCAD Electrical",
+        "Industrial Automation",
+        "Wiring & Safety",
+      ],
+    },
+  ],
+  Mechanical: [
+    {
+      name: "Thermal & fluids",
+      topics: [
+        "Thermodynamics",
+        "Heat Transfer",
+        "Fluid Mechanics",
+        "IC Engines",
+        "Refrigeration & Air Conditioning",
+        "Power Plant Engineering",
+        "Turbomachinery",
+      ],
+    },
+    {
+      name: "Design & manufacturing",
+      topics: [
+        "Engineering Mechanics",
+        "Strength of Materials",
+        "Theory of Machines",
+        "Machine Design",
+        "Manufacturing Processes",
+        "Material Science",
+        "Metrology",
+        "Welding & Casting",
+        "CNC Machining",
+      ],
+    },
+    {
+      name: "Industrial & robotics",
+      topics: [
+        "Industrial Engineering",
+        "Operations Research",
+        "Robotics",
+        "Mechatronics",
+        "Supply Chain",
+        "Quality Control",
+      ],
+    },
+    {
+      name: "CAD & CAE tools",
+      topics: ["AutoCAD", "SolidWorks", "CATIA", "Creo", "Fusion 360", "ANSYS", "CFD", "Siemens NX"],
+    },
+  ],
+  Civil: [
+    {
+      name: "Structures",
+      topics: [
+        "Structural Analysis",
+        "Reinforced Concrete Design",
+        "Steel Structures",
+        "Strength of Materials",
+        "Concrete Technology",
+        "Building Materials",
+        "Prestressed Concrete",
+        "Earthquake Engineering",
+      ],
+    },
+    {
+      name: "Geotech, water & transport",
+      topics: [
+        "Geotechnical Engineering",
+        "Soil Mechanics",
+        "Fluid Mechanics",
+        "Hydrology",
+        "Irrigation Engineering",
+        "Water Resources",
+        "Transportation Engineering",
+        "Highway Engineering",
+        "Environmental Engineering",
+      ],
+    },
+    {
+      name: "Site & project management",
+      topics: [
+        "Surveying",
+        "Total Station & GPS",
+        "Estimation & Costing",
+        "Quantity Surveying",
+        "Construction Management",
+        "Project Planning",
+        "Site Safety",
+      ],
+    },
+    {
+      name: "Civil software",
+      topics: ["AutoCAD", "STAAD.Pro", "ETABS", "Revit", "SketchUp", "Primavera", "MS Project", "QGIS"],
+    },
+  ],
+  Chemical: [
+    {
+      name: "Process core",
+      topics: [
+        "Process Calculations",
+        "Chemical Thermodynamics",
+        "Fluid Mechanics",
+        "Heat Transfer",
+        "Mass Transfer",
+        "Chemical Reaction Engineering",
+        "Transport Phenomena",
+        "Mechanical Operations",
+      ],
+    },
+    {
+      name: "Plant & control",
+      topics: [
+        "Process Control",
+        "Process Equipment Design",
+        "Plant Design & Economics",
+        "Petroleum Refining",
+        "Polymer Technology",
+        "Safety & Hazard Analysis",
+      ],
+    },
+    {
+      name: "Process software",
+      topics: ["Aspen Plus", "Aspen HYSYS", "DWSIM", "MATLAB", "AutoCAD P&ID"],
+    },
+  ],
+  Aerospace: [
+    {
+      name: "Flight core",
+      topics: [
+        "Aerodynamics",
+        "Flight Mechanics",
+        "Aircraft Structures",
+        "Propulsion",
+        "Gas Dynamics",
+        "Orbital Mechanics",
+        "Avionics",
+        "Composite Materials",
+      ],
+    },
+    {
+      name: "Aerospace tools",
+      topics: ["ANSYS Fluent", "CFD", "CATIA", "XFLR5", "OpenFOAM", "MATLAB"],
+    },
+  ],
+  Automobile: [
+    {
+      name: "Vehicle core",
+      topics: [
+        "IC Engines",
+        "Vehicle Dynamics",
+        "Automotive Chassis",
+        "Transmission Systems",
+        "Automotive Electronics",
+        "EV Technology",
+        "Hybrid Vehicles",
+        "Automotive Safety",
+        "Vehicle Maintenance",
+      ],
+    },
+    {
+      name: "Automotive tools",
+      topics: ["AutoCAD", "SolidWorks", "CATIA", "ANSYS", "GT-Suite"],
+    },
+  ],
+  Biotech: [
+    {
+      name: "Life sciences",
+      topics: [
+        "Biochemistry",
+        "Microbiology",
+        "Molecular Biology",
+        "Genetic Engineering",
+        "Cell Biology",
+        "Immunology",
+        "Enzyme Technology",
+      ],
+    },
+    {
+      name: "Bioprocess & biomedical",
+      topics: [
+        "Bioprocess Engineering",
+        "Bioreactor Design",
+        "Downstream Processing",
+        "Bioinformatics",
+        "Biomedical Instrumentation",
+        "Biomaterials",
+        "Tissue Engineering",
+      ],
+    },
+    {
+      name: "Lab & biotech tools",
+      topics: ["PCR & Electrophoresis", "BLAST & NCBI Tools", "Python for Bioinformatics", "MATLAB", "SPSS"],
+    },
+  ],
+};
+
+/** Every group once, in branch order — CSE and IT share objects, so identity dedupes them. */
+export const ALL_TOPIC_GROUPS: TopicGroup[] = [
+  ...new Set(Object.values(BRANCH_TOPICS).flat()),
+  ...COMMON_GROUPS,
+];
+
+/** Branch subjects first, then the shared ones, minus anything the branch already lists. */
+export function topicGroupsFor(branch: string): TopicGroup[] {
+  const groups = BRANCH_TOPICS[branch];
+  if (!groups) return ALL_TOPIC_GROUPS;
+
+  const claimed = new Set(groups.flatMap((g) => g.topics));
+  const shared = COMMON_GROUPS.map((g) => ({
+    ...g,
+    topics: g.topics.filter((t) => !claimed.has(t)),
+  })).filter((g) => g.topics.length > 0);
+
+  return [...groups, ...shared];
+}
+
+export const TOPICS = [...new Set(ALL_TOPIC_GROUPS.flatMap((g) => g.topics))];
 
 export const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
-export const BRANCHES = ["CSE", "IT", "ECE", "EEE", "Mechanical", "Civil", "Other"];
+export const BRANCHES = [
+  "CSE",
+  "IT",
+  "ECE",
+  "Electrical",
+  "Mechanical",
+  "Civil",
+  "Chemical",
+  "Aerospace",
+  "Automobile",
+  "Biotech",
+  "Other",
+];
 
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -255,6 +613,67 @@ export const MENTORS: Mentor[] = [
       { day: "Sat", time: "5 PM" },
     ],
   },
+  {
+    id: "meera",
+    name: "Meera J.",
+    year: "4th Year",
+    branch: "Civil",
+    rating: 4.8,
+    reviews: 21,
+    skills: ["Structural Analysis", "AutoCAD", "Surveying"],
+    verified: "high",
+    online: true,
+    slots: [
+      { day: "Mon", time: "11 AM" },
+      { day: "Wed", time: "5 PM" },
+      { day: "Sat", time: "10 AM" },
+    ],
+  },
+  {
+    id: "vikram",
+    name: "Vikram D.",
+    year: "3rd Year",
+    branch: "Mechanical",
+    rating: 4.7,
+    reviews: 18,
+    skills: ["Thermodynamics", "SolidWorks", "Strength of Materials"],
+    verified: "medium",
+    online: false,
+    slots: [
+      { day: "Tue", time: "4 PM" },
+      { day: "Thu", time: "7 PM" },
+    ],
+  },
+  {
+    id: "sana",
+    name: "Sana P.",
+    year: "4th Year",
+    branch: "Electrical",
+    rating: 4.9,
+    reviews: 23,
+    skills: ["Electrical Machines", "Power Systems", "MATLAB"],
+    verified: "high",
+    online: true,
+    slots: [
+      { day: "Mon", time: "6 PM" },
+      { day: "Fri", time: "12 PM" },
+    ],
+  },
+  {
+    id: "irfan",
+    name: "Irfan Q.",
+    year: "3rd Year",
+    branch: "ECE",
+    rating: 4.6,
+    reviews: 15,
+    skills: ["Embedded C", "Microcontrollers", "VLSI Design"],
+    verified: "medium",
+    online: false,
+    slots: [
+      { day: "Wed", time: "3 PM" },
+      { day: "Sun", time: "8 PM" },
+    ],
+  },
 ];
 
 /** Keyword → concept gap. Stands in for the Gemini triage call. */
@@ -299,13 +718,48 @@ const TRIAGE_RULES: {
     explanation:
       "The query returns wrong rows because the join type doesn't match the relationship between your tables.",
   },
+  {
+    match: ["beam", "bending", "truss", "moment", "staad", "slab", "column", "load"],
+    topic: "Structural Analysis",
+    concept: "Load paths & support conditions",
+    explanation:
+      "The numbers come out wrong because the supports you assumed don't match how the load actually travels to the ground.",
+  },
+  {
+    match: ["thermo", "entropy", "enthalpy", "carnot", "heat transfer", "cycle", "steam"],
+    topic: "Thermodynamics",
+    concept: "Choosing the system boundary",
+    explanation:
+      "Most of these questions get easier the moment you fix what's inside the control volume and what crosses it.",
+  },
+  {
+    match: ["motor", "transformer", "torque", "power factor", "alternator", "winding", "load flow"],
+    topic: "Electrical Machines",
+    concept: "Equivalent circuits & phasor reasoning",
+    explanation:
+      "The machine isn't behaving oddly — the equivalent circuit you're solving is missing the losses that matter here.",
+  },
+  {
+    match: ["arduino", "microcontroller", "embedded", "interrupt", "uart", "i2c", "gpio", "timer"],
+    topic: "Embedded C",
+    concept: "Peripheral configuration & timing",
+    explanation:
+      "The code is fine; the peripheral registers aren't set up for the clock and timing your board actually runs at.",
+  },
+  {
+    match: ["autocad", "solidworks", "catia", "ansys", "cad", "drafting", "assembly", "mesh"],
+    topic: "AutoCAD",
+    concept: "Constraints & model setup",
+    explanation:
+      "The model fights you because it's under-constrained — fix the references before touching the geometry.",
+  },
 ];
 
 const DEFAULT_TRIAGE = {
-  topic: "DSA",
+  topic: "",
   concept: "Problem decomposition",
   explanation:
-    "Before the code, the gap is breaking the problem into the state you need to track and the transitions between them.",
+    "Before the solution, the gap is breaking the problem into what you're given, what you're solving for, and the step between them.",
 };
 
 function reasonFor(mentor: Mentor, topic: string) {
@@ -317,16 +771,23 @@ function reasonFor(mentor: Mentor, topic: string) {
 }
 
 /** Mock of `POST /api/match` — swap for the Gemini call when the API exists. */
-export function runTriage(text: string): Triage {
+export function runTriage(text: string, context: { branch?: string; topics?: string[] } = {}): Triage {
   const lower = text.toLowerCase();
   const rule = TRIAGE_RULES.find((r) => r.match.some((k) => lower.includes(k)));
-  const { topic, concept, explanation } = rule ?? DEFAULT_TRIAGE;
+  const fallback = { ...DEFAULT_TRIAGE, topic: context.topics?.[0] ?? "Engineering Mathematics" };
+  const { topic, concept, explanation } = rule ?? fallback;
 
+  // Skill match first, then same branch — a Civil doubt should not surface a CSE senior.
   const ranked = [...MENTORS]
     .sort((a, b) => {
       const aHas = a.skills.includes(topic) ? 1 : 0;
       const bHas = b.skills.includes(topic) ? 1 : 0;
       if (aHas !== bHas) return bHas - aHas;
+
+      const aBranch = a.branch === context.branch ? 1 : 0;
+      const bBranch = b.branch === context.branch ? 1 : 0;
+      if (aBranch !== bBranch) return bBranch - aBranch;
+
       return b.rating - a.rating;
     })
     .slice(0, 3);
