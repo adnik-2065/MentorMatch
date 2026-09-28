@@ -49,6 +49,17 @@ export default function Home() {
         </a>
       </div>
 
+      <p className="mt-6 text-sm text-faint">
+        Already onboarded?{" "}
+        <Link
+          href="/signin"
+          className="font-medium text-primary-text underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Sign in
+        </Link>{" "}
+        — or open a sample account from there.
+      </p>
+
       <ul className="mt-16 grid gap-6 sm:grid-cols-3">
         {points.map((p) => (
           <li key={p.title}>

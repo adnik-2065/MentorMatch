@@ -130,6 +130,59 @@ export function IconGithub({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
+export function IconMessage({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-5.5A8 8 0 0 1 11 4h2a8 8 0 0 1 8 8Z" />
+    </svg>
+  );
+}
+
+export function IconClock({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+export function IconBolt({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
+    </svg>
+  );
+}
+
+export function IconUsers({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20" />
+      <circle cx="9" cy="7" r="3.5" />
+      <path d="M17 4.5a3.5 3.5 0 0 1 0 6.9M22 20v-1.5a4 4 0 0 0-3-3.8" />
+    </svg>
+  );
+}
+
+export function IconNote({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M5 4a2 2 0 0 1 2-2h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4Z" />
+      <path d="M14 2v5h5M9 13h6M9 17h4" />
+    </svg>
+  );
+}
+
+export function IconTrend({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3 17l6-6 4 4 7-7" />
+      <path d="M14 8h6v6" />
+    </svg>
+  );
+}
+
 export function IconDot({ className = "h-2 w-2" }: IconProps) {
   return (
     <svg viewBox="0 0 8 8" className={className} aria-hidden focusable="false">

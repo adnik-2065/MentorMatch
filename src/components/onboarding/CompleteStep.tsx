@@ -1,11 +1,20 @@
 "use client";
 
+import { useEffect } from "react";
+import Link from "next/link";
 import { Badge, Button, Card, StepHeading } from "@/components/ui";
 import { IconArrowRight, IconCalendar, IconCheck, IconShield } from "@/components/icons";
 import { analyseRepos, type OnboardingState } from "@/lib/onboarding";
+import { saveProfile } from "@/lib/account";
 
 export function CompleteStep({ state, onReset }: { state: OnboardingState; onReset: () => void }) {
   const isMentor = state.role === "mentor";
+
+  // Reaching this step is what creates the account — the dashboards read it from here.
+  useEffect(() => {
+    saveProfile(state);
+  }, [state]);
+
   const firstName = state.name.trim().split(" ")[0] || "there";
   const slotCount = Object.values(state.availability).flat().length;
   const badges = state.proofStatus === "done" ? analyseRepos(state.teachTopics) : [];
@@ -123,10 +132,13 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
       </Card>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button>
+        <Link
+          href={isMentor ? "/mentor" : "/dashboard"}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-on-primary transition-colors duration-200 outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+        >
           Go to dashboard
           <IconArrowRight />
-        </Button>
+        </Link>
         <Button variant="ghost" onClick={onReset}>
           Restart demo
         </Button>

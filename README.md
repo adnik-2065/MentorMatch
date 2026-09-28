@@ -345,6 +345,20 @@ npm run dev
 
 Open [localhost:3000/onboarding](http://localhost:3000/onboarding) — **the onboarding dashboard is built and clickable end to end.** It runs on mock data, so no database or API key is needed yet; everything below is for when you wire up the backend.
 
+### Accounts and dashboards
+
+Finishing onboarding creates your account in the browser (`localStorage`, key `mentormatch.profile.v1`) and drops you on `/dashboard` (junior) or `/mentor` (senior). Those pages show **your** data — the name you typed, the subjects you picked, the slots you published, the session you booked. Nothing is pre-filled for you; sections you haven't used yet show an empty state with the action that fills them.
+
+[localhost:3000/signin](http://localhost:3000/signin) is the switcher:
+
+| Card | What it opens |
+|---|---|
+| **Your account** | Your stored onboarding profile — only appears once you've finished onboarding |
+| **Aditya N.** — 2nd Year Civil | Sample junior: booked sessions, a session to rate, AI recaps |
+| **Meera J.** — 4th Year Civil | Sample senior: pending requests, a published week, MentorScore |
+
+The sample accounts exist so the dashboards can be demoed with a full week of data, but they are **only** rendered while you're signed into one of them — they carry a `Sample account` badge in the header, and `Switch` returns you to the picker. Real profiles never mix with sample data (`src/lib/account.ts` builds a view from one or the other, never both).
+
 ### Environment
 
 Create `.env.local` in the project root:
@@ -396,14 +410,16 @@ MentorMatch/
 ├── src/
 │   ├── app/
 │   │   ├── onboarding/        # ✅ built — the onboarding dashboard
+│   │   ├── signin/            # ✅ built — your account, or a sample one
+│   │   ├── dashboard/         # ✅ built — student: sessions, ratings, recaps
+│   │   ├── mentor/            # ✅ built — mentor: requests, schedule, score
 │   │   ├── (auth)/            # login, signup, verify college email
 │   │   ├── (main)/
 │   │   │   ├── discover/      # topic search + Smart Match
 │   │   │   ├── mentor/[id]/   # public mentor profile + badges
 │   │   │   ├── availability/  # mentor sets their weekly slots
-│   │   │   ├── sessions/      # bookings, calendar, session room, rating form
-│   │   │   ├── doubts/        # async doubt threads
-│   │   │   └── dashboard/     # progress, notes vault, roadmap
+│   │   │   ├── sessions/      # bookings, calendar, session room
+│   │   │   └── doubts/        # async doubt threads
 │   │   └── api/
 │   │       ├── auth/          # NextAuth handler
 │   │       ├── match/         # Smart Match + triage
@@ -411,9 +427,13 @@ MentorMatch/
 │   │       └── twin/          # Mentor Twin chat
 │   ├── components/
 │   │   ├── ui.tsx             # ✅ Button, Input, Chip, Card, Badge…
-│   │   └── onboarding/        # ✅ ProgressRail + one file per step group
+│   │   ├── SignIn.tsx         # ✅ account picker — yours or a sample one
+│   │   ├── onboarding/        # ✅ ProgressRail + one file per step group
+│   │   └── dashboard/         # ✅ Shell, SessionCard, RequestInbox, rating
 │   ├── lib/
-│   │   ├── onboarding.ts      # ✅ types, mock mentors, mock triage
+│   │   ├── onboarding.ts      # ✅ branch subjects, mock mentors, mock triage
+│   │   ├── account.ts         # ✅ stored profile → dashboard view (or sample)
+│   │   ├── dashboard.ts       # ✅ sample sessions, requests, doubts, recaps
 │   │   ├── db.ts              # Prisma client
 │   │   ├── auth.ts            # NextAuth config
 │   │   └── ai/
@@ -433,6 +453,9 @@ MentorMatch/
 **Phase 1 — Foundation**
 - [x] Next.js + TypeScript + Tailwind scaffold
 - [x] Onboarding dashboard (both roles, mock data)
+- [x] Branch-specific subject lists for 10 engineering branches
+- [x] Student and mentor dashboards, driven by your own onboarding profile
+- [x] Account switcher with two sample accounts for demos
 - [ ] Prisma schema + database setup
 - [ ] Auth + college email verification
 - [ ] Profiles with self-declared skills
