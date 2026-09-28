@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+/*
+ * MentorMatch design tokens — Swiss / minimalist, teal.
+ *
+ * Contrast note: the brand teal (#0D9488) only reaches 3.7:1 against white,
+ * which fails WCAG AA for normal text. So interactive fills use the darker
+ * #0F766E (5.5:1 on white) and the brighter teal is reserved for accents,
+ * borders and dark-mode text where it clears 4.5:1 comfortably.
+ */
+
+@theme inline {
+  --font-sans: var(--font-outfit);
+  --font-body: var(--font-work-sans);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-text: var(--primary-text);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-ring: var(--ring);
+}
+
+:root {
+  --bg: #f0fdfa;
+  --surface: #ffffff;
+  --inset: #f8fafc;
+
+  --fg: #0f172a;
+  --muted: #475569;
+  --faint: #64748b;
+
+  --line: #d9e6e4;
+  --line-strong: #99f6e4;
+
+  --primary: #0f766e;
+  --primary-hover: #115e59;
+  --on-primary: #ffffff;
+  --primary-soft: #ccfbf1;
+  --primary-text: #0f766e;
+
+  --success: #047857;
+  --success-soft: #d1fae5;
+  --warning: #b45309;
+  --warning-soft: #fef3c7;
+  --danger: #b91c1c; /* red-600 measured 3.95:1 on --danger-soft; red-700 gives 5.4:1 */
+  --danger-soft: #fee2e2;
+
+  --ring: #0d9488;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1412;
+    --surface: #131f1d;
+    --inset: #0f1a18;
+
+    --fg: #f0fdfa;
+    --muted: #a8c5c0;
+    --faint: #8ba8a3;
+
+    --line: #24352f;
+    --line-strong: #2f4a43;
+
+    --primary: #2dd4bf;
+    --primary-hover: #5eead4;
+    --on-primary: #042f2e;
+    --primary-soft: #14312d;
+    --primary-text: #5eead4;
+
+    --success: #34d399;
+    --success-soft: #0d2e24;
+    --warning: #fbbf24;
+    --warning-soft: #33260a;
+    --danger: #f87171;
+    --danger-soft: #3a1414;
+
+    --ring: #2dd4bf;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: light dark;
+}
+
+body {
+  font-family: var(--font-body), system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  text-wrap: balance;
+  letter-spacing: -0.015em;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Honour reduced-motion for every transition and animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
