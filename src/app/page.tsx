@@ -19,6 +19,30 @@ const points = [
   },
 ];
 
+/** The five steps, start to finish. Each one is a real surface, not a mockup. */
+const steps = [
+  {
+    title: "Describe your doubt",
+    body: "Type the problem or paste the error log. No slot to book, no form to fill.",
+  },
+  {
+    title: "AI reads it",
+    body: "Gemini names the subject and the concept gap underneath the symptom, plus what to read next.",
+  },
+  {
+    title: "Get matched",
+    body: "Seniors who've proven that subject, ranked by rating and who's free soonest.",
+  },
+  {
+    title: "Learn in a session",
+    body: "One room per session and per doubt — paste code, ask the follow-up, no scheduling ping-pong.",
+  },
+  {
+    title: "Recap & progress",
+    body: "A written recap of what you covered and two or three practice tasks you can tick off.",
+  },
+];
+
 export default function Home() {
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-20 sm:px-6 sm:py-28">
@@ -72,9 +96,35 @@ export default function Home() {
         ))}
       </ul>
 
+      <section className="mt-20 border-t border-line pt-10">
+        <h2 className="font-sans text-2xl font-semibold text-fg">How it works</h2>
+        <p className="mt-1.5 max-w-[56ch] text-sm leading-relaxed text-muted">
+          From a pasted error to something you can practise, in five steps.
+        </p>
+
+        <ol className="mt-8 space-y-6">
+          {steps.map((step, i) => (
+            <li key={step.title} className="flex gap-4">
+              <span
+                aria-hidden="true"
+                className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft font-sans text-sm font-semibold tabular-nums text-primary-text"
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0">
+                <h3 className="font-sans text-base font-semibold text-fg">{step.title}</h3>
+                <p className="mt-1 max-w-[58ch] text-sm leading-relaxed text-muted">{step.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
       <p className="mt-16 border-t border-line pt-6 text-xs leading-relaxed text-faint">
-        Early build — onboarding is wired up with mock data. Chat, booking and the AI layer come
-        next.
+        Early build — onboarding, dashboards, booking, async doubts and session chat all work on
+        mock data held in your browser. Triage and recaps call Gemini through this app&apos;s own
+        API routes, and fall back to an offline keyword table when it isn&apos;t reachable. The
+        database comes next.
       </p>
     </main>
   );

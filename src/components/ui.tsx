@@ -105,16 +105,25 @@ export function ChoiceGroup({
   label,
   children,
   hint,
+  single = false,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
+  /** Pick exactly one — pair it with `single` on every Chip inside. */
+  single?: boolean;
 }) {
   return (
     <fieldset className="space-y-2.5">
       <legend className="text-sm font-medium text-fg">{label}</legend>
       {hint && <p className="text-xs text-faint">{hint}</p>}
-      <div className="flex flex-wrap gap-2">{children}</div>
+      <div
+        role={single ? "radiogroup" : undefined}
+        aria-label={single ? label : undefined}
+        className="flex flex-wrap gap-2"
+      >
+        {children}
+      </div>
     </fieldset>
   );
 }
@@ -123,15 +132,18 @@ export function Chip({
   label,
   selected,
   onClick,
+  single = false,
 }: {
   label: string;
   selected: boolean;
   onClick: () => void;
+  /** One of many rather than a toggle — the group must be a radiogroup too. */
+  single?: boolean;
 }) {
   return (
     <button
       type="button"
-      role="switch"
+      role={single ? "radio" : "switch"}
       aria-checked={selected}
       onClick={onClick}
       className={`inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border px-4 text-sm transition-colors duration-200 ${focus} ${

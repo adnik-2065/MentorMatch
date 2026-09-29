@@ -18,8 +18,8 @@ const SHARED: RailStep[] = [
 const JUNIOR: RailStep[] = [
   { key: "learn", label: "Topics", hint: "What you want to learn" },
   { key: "stuck", label: "Your problem", hint: "AI finds the concept gap" },
-  { key: "match", label: "Book a session", hint: "Top rated, free soonest" },
-  { key: "done", label: "Done", hint: "You're booked" },
+  { key: "match", label: "Ask for a slot", hint: "Top rated, free soonest" },
+  { key: "done", label: "Done", hint: "Waiting on the senior" },
 ];
 
 const MENTOR: RailStep[] = [
