@@ -1,0 +1,405 @@
+// MentorMatch database schema.
+//
+// Accounts, sign-in and the AI learning roadmap. The rest of the planned
+// models (Slot, Session, Review, DoubtThread…) land here as those features
+// move off localStorage.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/**
+ * ─────────────────────────────── accounts ───────────────────────────────
+ */
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String   @default("")
+  college     String   @default("")
+  year        String   @default("")
+  branch      String   @default("")
+  /// One account, both hats — set when the person claims subjects to teach.
+  isMentor    Boolean  @default(false)
+  teachTopics String[] @default([])
+  learnTopics String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessions           AuthSession[]
+  preferences        RoadmapPreference[]
+  roadmaps           LearningRoadmap[]   @relation("RoadmapOwner")
+  mentorShares       RoadmapShare[]
+  mentorFeedback     MentorFeedback[]
+  proposedRevisions  RoadmapRevision[]
+  assessmentAttempts AssessmentAttempt[]
+  taskProgress       TaskProgress[]
+  aiRequests         AiRequest[]
+}
+
+/// A six-digit sign-in code. Only an HMAC of the code is stored.
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  email      String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email, createdAt])
+}
+
+/// Server-side session. The cookie holds a random token; only its hash lives here.
+model AuthSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/**
+ * ─────────────────────────────── roadmaps ───────────────────────────────
+ */
+
+enum ProficiencyLevel {
+  COMPLETE_BEGINNER
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum LearningStyle {
+  PROJECTS
+  THEORY
+  PROBLEM_SOLVING
+  RESOURCES
+  MIXED
+}
+
+enum TimeUnit {
+  DAY
+  WEEK
+}
+
+enum GenerationStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+/// What the learner asked for. Saved before the AI runs, so a failed
+/// generation can be retried without filling the form in again.
+model RoadmapPreference {
+  id                  String           @id @default(cuid())
+  userId              String
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill               String
+  skillIsCustom       Boolean          @default(false)
+  currentLevel        ProficiencyLevel
+  targetLevel         ProficiencyLevel
+  goal                String
+  timeAmount          Float
+  timeUnit            TimeUnit
+  daysPerWeek         Int?
+  /// Derived from timeAmount/timeUnit/daysPerWeek on the server.
+  hoursPerWeek        Float
+  durationWeeks       Int
+  learningStyle       LearningStyle
+  focusTopics         String[]         @default([])
+  status              GenerationStatus @default(PENDING)
+  generationStartedAt DateTime?
+  lastError           String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  roadmaps LearningRoadmap[]
+
+  @@index([userId, createdAt])
+}
+
+enum RoadmapStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ContentSource {
+  AI
+  ADAPTIVE
+  MENTOR
+}
+
+model LearningRoadmap {
+  id                String            @id @default(cuid())
+  ownerId           String
+  owner             User              @relation("RoadmapOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  preferenceId      String
+  preference        RoadmapPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+  status            RoadmapStatus     @default(ACTIVE)
+  title             String
+  skill             String
+  description       String
+  currentLevel      ProficiencyLevel
+  targetLevel       ProficiencyLevel
+  durationWeeks     Int
+  hoursPerWeek      Float
+  estimatedDuration String
+  weeklyCommitment  String
+  /// { title, description, deliverables[], skillsDemonstrated[], successCriteria[] }
+  capstone          Json
+  /// Bumped every time an accepted revision changes the plan.
+  version           Int               @default(1)
+  aiProvider        String
+  aiModel           String
+  /// Set when this roadmap was produced by regenerating an older one.
+  previousRoadmapId String?
+  previousRoadmap   LearningRoadmap?  @relation("RoadmapLineage", fields: [previousRoadmapId], references: [id], onDelete: SetNull)
+  nextRoadmaps      LearningRoadmap[] @relation("RoadmapLineage")
+  startedAt         DateTime          @default(now())
+  archivedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  milestones RoadmapMilestone[]
+  tasks      RoadmapTask[]
+  progress   TaskProgress[]
+  attempts   AssessmentAttempt[]
+  revisions  RoadmapRevision[]
+  shares     RoadmapShare[]
+  feedback   MentorFeedback[]
+
+  @@index([ownerId, status, createdAt])
+}
+
+/// One week, or one phase spanning several weeks.
+model RoadmapMilestone {
+  id                 String          @id @default(cuid())
+  roadmapId          String
+  roadmap            LearningRoadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  position           Int
+  weekStart          Int
+  weekEnd            Int
+  title              String
+  summary            String
+  objectives         String[]
+  /// [{ name, subtopics[] }]
+  topics             Json
+  /// [{ title, type, url?, description? }]
+  resources          Json
+  estimatedHours     Float
+  completionCriteria String[]
+  /// { questions: [{ question, options[], correctIndex, explanation }] } — answers never leave the server for learners.
+  quiz               Json
+  source             ContentSource   @default(AI)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  tasks    RoadmapTask[]
+  attempts AssessmentAttempt[]
+  feedback MentorFeedback[]
+
+  @@unique([roadmapId, position])
+}
+
+enum TaskKind {
+  ASSIGNMENT
+  EXERCISE
+  ASSESSMENT
+  CAPSTONE
+}
+
+model RoadmapTask {
+  id          String           @id @default(cuid())
+  roadmapId   String
+  roadmap     LearningRoadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  milestoneId String
+  milestone   RoadmapMilestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  position    Int
+  kind        TaskKind
+  title       String
+  description String
+  source      ContentSource    @default(AI)
+  /// The accepted revision that added this task, if any.
+  revisionId  String?
+  revision    RoadmapRevision? @relation(fields: [revisionId], references: [id], onDelete: SetNull)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  progress TaskProgress?
+  feedback MentorFeedback[]
+
+  @@index([roadmapId])
+  @@index([milestoneId, position])
+}
+
+/// Completion and private notes for one task. One row per task — upserts can never duplicate it.
+model TaskProgress {
+  id          String          @id @default(cuid())
+  taskId      String          @unique
+  task        RoadmapTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  roadmapId   String
+  roadmap     LearningRoadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completedAt DateTime?
+  /// Private to the learner — never shown to a mentor.
+  note        String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([roadmapId])
+}
+
+model AssessmentAttempt {
+  id           String           @id @default(cuid())
+  roadmapId    String
+  roadmap      LearningRoadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  milestoneId  String
+  milestone    RoadmapMilestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score        Int
+  maxScore     Int
+  /// [{ question, selectedIndex, correctIndex, correct }]
+  answers      Json
+  difficulties String?
+  createdAt    DateTime         @default(now())
+
+  revisions RoadmapRevision[]
+
+  @@index([roadmapId, milestoneId, createdAt])
+}
+
+enum RevisionSource {
+  ADAPTIVE
+  MENTOR
+}
+
+enum RevisionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+/// A proposed change to the plan — from the adaptive AI or a mentor. Nothing
+/// touches the roadmap until the learner accepts; rejected ones stay as history.
+model RoadmapRevision {
+  id                  String             @id @default(cuid())
+  roadmapId           String
+  roadmap             LearningRoadmap    @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  source              RevisionSource
+  status              RevisionStatus     @default(PENDING)
+  proposedById        String
+  proposedBy          User               @relation(fields: [proposedById], references: [id], onDelete: Cascade)
+  summary             String
+  rationale           String
+  /// Adaptive only: how strongly the evidence supports the analysis (limited | moderate | strong).
+  evidence            String?
+  /// Advice that needs no approval: practice ideas, alternative explanations, mentor sessions.
+  recommendations     Json
+  /// Structural edits applied on accept — see src/lib/roadmap/schemas.ts `revisionChange`.
+  changes             Json
+  learnerFeedback     String?
+  assessmentAttemptId String?
+  assessmentAttempt   AssessmentAttempt? @relation(fields: [assessmentAttemptId], references: [id], onDelete: SetNull)
+  baseVersion         Int
+  appliedVersion      Int?
+  /// The affected milestones as they were before this revision was applied.
+  snapshotBefore      Json?
+  decidedAt           DateTime?
+  createdAt           DateTime           @default(now())
+
+  tasks RoadmapTask[]
+
+  @@index([roadmapId, status, createdAt])
+}
+
+/**
+ * ──────────────────────────────── mentors ───────────────────────────────
+ */
+
+enum ShareStatus {
+  ACTIVE
+  REVOKED
+}
+
+/// The learner's explicit grant. A mentor sees a roadmap only while an ACTIVE share exists.
+model RoadmapShare {
+  id        String          @id @default(cuid())
+  roadmapId String
+  roadmap   LearningRoadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  mentorId  String
+  mentor    User            @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  status    ShareStatus     @default(ACTIVE)
+  createdAt DateTime        @default(now())
+  revokedAt DateTime?
+
+  @@unique([roadmapId, mentorId])
+  @@index([mentorId, status])
+}
+
+enum FeedbackKind {
+  GENERAL
+  TASK
+  SESSION
+}
+
+model MentorFeedback {
+  id           String            @id @default(cuid())
+  roadmapId    String
+  roadmap      LearningRoadmap   @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  mentorId     String
+  mentor       User              @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  kind         FeedbackKind
+  body         String
+  taskId       String?
+  task         RoadmapTask?      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  milestoneId  String?
+  milestone    RoadmapMilestone? @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  /// For SESSION recommendations — what the session should cover.
+  sessionTopic String?
+  createdAt    DateTime          @default(now())
+
+  @@index([roadmapId, createdAt])
+}
+
+/**
+ * ─────────────────────────────── AI usage ───────────────────────────────
+ */
+
+enum AiRequestKind {
+  ROADMAP_GENERATION
+  ADAPTIVE
+}
+
+enum AiRequestStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+}
+
+/// Audit trail and rate-limit counter for expensive AI calls.
+model AiRequest {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       AiRequestKind
+  status     AiRequestStatus @default(STARTED)
+  provider   String
+  model      String
+  durationMs Int?
+  errorCode  String?
+  createdAt  DateTime        @default(now())
+
+  @@index([userId, kind, createdAt])
+}

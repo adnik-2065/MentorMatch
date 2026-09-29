@@ -190,3 +190,13 @@ export function IconDot({ className = "h-2 w-2" }: IconProps) {
     </svg>
   );
 }
+
+export function IconRoute({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="6" cy="19" r="2.5" />
+      <circle cx="18" cy="5" r="2.5" />
+      <path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5" />
+    </svg>
+  );
+}

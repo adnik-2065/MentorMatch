@@ -11,6 +11,7 @@ import {
   IconCheck,
   IconDot,
   IconNote,
+  IconRoute,
   IconShield,
   IconSparkle,
   IconTrend,
@@ -112,6 +113,30 @@ export function StudentDashboard() {
             ))}
           </div>
         )}
+      </Section>
+
+      <Section title="Learning roadmaps">
+        <Link
+          href="/dashboard/roadmaps"
+          className={`group flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-surface p-5 transition-colors duration-200 hover:border-primary ${focus}`}
+        >
+          <div className="flex items-start gap-3.5">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-text">
+              <IconRoute className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="font-sans text-sm font-semibold text-fg">Your week-by-week plans</p>
+              <p className="mt-1 max-w-[56ch] text-sm leading-relaxed text-muted">
+                Tell us a skill, your level and your hours — get milestones, practice tasks, checkpoint quizzes and a
+                final project, and track progress on any device.
+              </p>
+            </div>
+          </div>
+          <span className="flex items-center gap-1.5 text-sm font-medium text-primary-text">
+            Open roadmaps
+            <IconArrowRight />
+          </span>
+        </Link>
       </Section>
 
       <Section title="Your subjects">

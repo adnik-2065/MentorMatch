@@ -361,42 +361,40 @@ The sample accounts exist so the dashboards can be demoed with a full week of da
 
 ### Environment
 
-Create `.env.local` in the project root:
+Copy `.env.example` to `.env.local` and fill it in. Every variable is server-only — nothing is exposed to the browser.
 
-```env
-# Database
-DATABASE_URL="postgresql://user:pass@host/mentormatch?sslmode=require"
-
-# Auth
-NEXTAUTH_SECRET="run: openssl rand -base64 32"
-NEXTAUTH_URL="http://localhost:3000"
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
-
-# AI
-GEMINI_API_KEY="your_key_here"
-
-# Optional — add as you build these features
-RESEND_API_KEY=""
-UPLOADTHING_TOKEN=""
-GITHUB_TOKEN=""          # for SkillProof repo analysis
-```
+| Variable | Needed for |
+|---|---|
+| `DATABASE_URL` | Everything server-side (accounts, roadmaps) |
+| `TEST_DATABASE_URL` | `npm test` — a **separate** database; tests wipe it |
+| `AUTH_SECRET` | Signing one-time sign-in codes (`openssl rand -base64 36`) |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Emailing sign-in codes. Without them, development prints the code to the server console; production refuses to sign in |
+| `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL` | Roadmap generation and adaptive suggestions. Without a key those endpoints return a clear "not configured" error |
+| `AI_TIMEOUT_MS` | Optional per-call provider timeout (default 90 s) |
+| `SHADOW_DATABASE_URL` | Optional — a pre-created shadow DB for `prisma migrate dev` if your Postgres user can't create one |
 
 ### Database setup
 
 ```bash
-npx prisma generate
-npx prisma db push       # or: npx prisma migrate dev
-npx prisma studio        # optional — browse your data in the browser
+npm install              # also runs `prisma generate`
+npm run db:migrate       # dev: applies prisma/migrations
+npm run db:deploy        # production: applies migrations without prompting
 ```
 
-### Run
+### Run and test
 
 ```bash
-npm run dev
+npm run dev              # http://localhost:3000
+npm test                 # unit + integration tests (integration needs TEST_DATABASE_URL)
+npm run typecheck
+npm run build
 ```
 
-App runs at `http://localhost:3000`.
+### Learning roadmaps
+
+The first feature on the real backend. `/dashboard/roadmaps` — learners sign in with their college email (six-digit code), describe a skill, their level, goal, hours and learning style, and get an AI-generated week-by-week plan with tasks, checkpoint quizzes and a capstone. Progress, notes and quiz attempts live in Postgres. A learner can ask the AI coach for suggestions, share a roadmap with a mentor (`/mentor/roadmaps`), and accept or reject any proposed change — nothing edits a roadmap without their approval.
+
+The rest of the app (onboarding, sessions, the sample accounts) still runs on localStorage; signing in copies your onboarding profile onto the server account so mentors become discoverable.
 
 ---
 
@@ -420,7 +418,9 @@ MentorMatch/
 │   │   │   ├── availability/  # mentor sets their weekly slots
 │   │   │   ├── sessions/      # bookings, calendar, session room
 │   │   │   └── doubts/        # async doubt threads
-│   │   └── api/
+│   │   ├── dashboard/roadmaps/ # ✅ built — learner roadmaps: list, create, detail
+│   │   ├── mentor/roadmaps/   # ✅ built — roadmaps shared with a mentor
+│   │   └── api/               # ✅ auth, me, roadmaps, roadmap-requests, mentors
 │   │       ├── auth/          # NextAuth handler
 │   │       ├── match/         # Smart Match + triage
 │   │       ├── skillproof/    # GitHub analysis + viva
@@ -456,8 +456,8 @@ MentorMatch/
 - [x] Branch-specific subject lists for 10 engineering branches
 - [x] Student and mentor dashboards, driven by your own onboarding profile
 - [x] Account switcher with two sample accounts for demos
-- [ ] Prisma schema + database setup
-- [ ] Auth + college email verification
+- [x] Prisma schema + database setup (accounts and roadmaps so far)
+- [x] Auth + college email verification (OTP, server sessions)
 - [ ] Profiles with self-declared skills
 - [ ] Topic search and mentor discovery, sorted by rating
 - [ ] Mentor availability + slot booking

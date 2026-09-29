@@ -11,6 +11,7 @@ import {
   IconCalendar,
   IconClock,
   IconMessage,
+  IconRoute,
   IconShield,
   IconStar,
   IconTrend,
@@ -132,6 +133,30 @@ export function MentorDashboard() {
         ) : (
           <RequestInbox requests={view.requests} />
         )}
+      </Section>
+
+      <Section title="Learner roadmaps">
+        <Link
+          href="/mentor/roadmaps"
+          className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-surface p-5 transition-colors duration-200 hover:border-primary ${focus}`}
+        >
+          <div className="flex items-start gap-3.5">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-text">
+              <IconRoute className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="font-sans text-sm font-semibold text-fg">Roadmaps shared with you</p>
+              <p className="mt-1 max-w-[56ch] text-sm leading-relaxed text-muted">
+                Review a learner&apos;s plan, comment on finished tasks, recommend sessions and suggest changes they can
+                approve.
+              </p>
+            </div>
+          </div>
+          <span className="flex items-center gap-1.5 text-sm font-medium text-primary-text">
+            Review roadmaps
+            <IconArrowRight />
+          </span>
+        </Link>
       </Section>
 
       <Section title="Your schedule">

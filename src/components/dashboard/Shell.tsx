@@ -85,8 +85,10 @@ export function DashboardShell({
             </span>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 signOut();
+                // Also end the server session that roadmaps use; ignore failures, we're leaving anyway.
+                await fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
                 router.push("/signin");
               }}
               className={`min-h-9 cursor-pointer rounded-lg px-2.5 text-sm text-faint transition-colors duration-200 hover:bg-inset hover:text-fg ${focus}`}
