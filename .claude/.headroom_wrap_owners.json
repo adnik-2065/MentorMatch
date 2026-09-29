@@ -8,13 +8,6 @@
         "start_time": 416510.0,
         "port": 8787,
         "inherited": false
-      },
-      {
-        "pid": 51662,
-        "start_src": "proc",
-        "start_time": 428597.0,
-        "port": 8787,
-        "inherited": true
       }
     ]
   },
@@ -27,13 +20,6 @@
         "start_time": 416510.0,
         "port": null,
         "inherited": false
-      },
-      {
-        "pid": 51662,
-        "start_src": "proc",
-        "start_time": 428597.0,
-        "port": null,
-        "inherited": true
       }
     ]
   }
