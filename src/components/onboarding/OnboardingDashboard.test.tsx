@@ -11,7 +11,22 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+function createStorage(): Storage {
+  const items = new Map<string, string>();
+  return {
+    get length() {
+      return items.size;
+    },
+    clear: () => items.clear(),
+    getItem: (key) => items.get(key) ?? null,
+    key: (index) => [...items.keys()][index] ?? null,
+    removeItem: (key) => items.delete(key),
+    setItem: (key, value) => items.set(key, String(value)),
+  };
+}
+
 beforeEach(() => {
+  Object.defineProperty(window, "localStorage", { configurable: true, value: createStorage() });
   window.localStorage.clear();
   // No server copy and no database — the UI must cope.
   vi.stubGlobal(

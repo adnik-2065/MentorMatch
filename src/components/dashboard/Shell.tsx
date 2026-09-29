@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui";
 import {
+  IconCalendar,
   IconCompass,
   IconGraduation,
+  IconHelp,
   IconHome,
+  IconMessage,
   IconSearch,
   IconSparkle,
   IconTeach,
@@ -47,12 +50,49 @@ function RoleSwitch({ role }: { role: "student" | "mentor" }) {
   );
 }
 
+/** Asking, booking and chat are shared by both hats, so they sit outside the role switch. */
+function SectionNav({ unread = 0 }: { unread?: number }) {
+  const pathname = usePathname();
+  const links = [
+    { href: "/ask", label: "Ask", icon: <IconHelp className="h-3.5 w-3.5" /> },
+    { href: "/book", label: "Book", icon: <IconCalendar className="h-3.5 w-3.5" /> },
+    { href: "/chat", label: "Chat", icon: <IconMessage className="h-3.5 w-3.5" /> },
+  ] as const;
+
+  return (
+    <nav aria-label="Sections" className="flex items-center gap-1">
+      {links.map((link) => {
+        const active = pathname === link.href;
+        return (
+          <Link
+            key={link.href}
+            href={link.href}
+            aria-current={active ? "page" : undefined}
+            className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm transition-colors duration-200 ${focus} ${
+              active ? "bg-inset font-medium text-fg" : "text-muted hover:bg-inset hover:text-fg"
+            }`}
+          >
+            {link.icon}
+            {link.label}
+            {link.href === "/chat" && unread > 0 && (
+              <span className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold text-on-primary tabular-nums">
+                {unread}
+              </span>
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function DashboardShell({
   role,
   name,
   meta,
   demo = false,
   active = "dashboard",
+  unread = 0,
   children,
 }: {
   role: "student" | "mentor";
@@ -60,6 +100,7 @@ export function DashboardShell({
   meta: string;
   demo?: boolean;
   active?: "dashboard" | "discover";
+  unread?: number;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -112,6 +153,9 @@ export function DashboardShell({
               Edit profile
             </Link>
           </nav>
+          <div className="mt-3 border-t border-line pt-3">
+            <SectionNav unread={unread} />
+          </div>
         </div>
 
         <div className="mt-auto hidden px-4 pb-5 lg:block">

@@ -6,6 +6,7 @@ import { DashboardGate, DashboardShell, EmptyState, Section, StatTile } from "./
 import { RequestInbox } from "./RequestInbox";
 import { OnlineToggle } from "./OnlineToggle";
 import { ActivityChart } from "./ActivityChart";
+import { SessionCard } from "./SessionCard";
 import {
   IconArrowRight,
   IconCalendar,
@@ -17,14 +18,16 @@ import {
   IconUsers,
 } from "@/components/icons";
 import { mentorView, useAccount } from "@/lib/account";
+import { acceptBooking, cancelBooking } from "@/lib/bookings";
 import { DAYS } from "@/lib/onboarding";
+import type { Request } from "@/lib/dashboard";
 
 const focus =
   "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 export function MentorDashboard() {
-  const { ready, account, profile } = useAccount();
-  const view = ready && account ? mentorView(account, profile) : null;
+  const { ready, account, profile, bookings, doubts } = useAccount();
+  const view = ready && account ? mentorView(account, profile, bookings, doubts) : null;
 
   if (!view) {
     return (
@@ -40,11 +43,20 @@ export function MentorDashboard() {
 
   const next = view.sessions[0];
   const firstName = view.name.split(" ")[0];
+  const unread =
+    view.sessions.reduce((count, session) => count + session.unread, 0) +
+    view.doubts.filter((doubt) => doubt.answers === 0).length;
   const peak = Math.max(1, ...Object.values(view.week));
   const pending = view.requests.length;
 
+  const decide = (request: Request, decision: "accepted" | "declined") => {
+    if (!account || !request.bookingId) return;
+    if (decision === "accepted") acceptBooking(account, request.bookingId);
+    else cancelBooking(account, request.bookingId);
+  };
+
   return (
-    <DashboardShell role="mentor" name={view.name} meta={[view.year, view.branch].filter(Boolean).join(" · ")} demo={view.demo}>
+    <DashboardShell role="mentor" name={view.name} meta={[view.year, view.branch].filter(Boolean).join(" · ")} demo={view.demo} unread={unread}>
       <div className="flex flex-wrap items-end justify-between gap-5">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-text">Mentor overview</p>
@@ -70,7 +82,7 @@ export function MentorDashboard() {
               <div><h2 className="font-sans text-lg font-semibold tracking-tight text-fg">Session requests</h2><p className="mt-1 text-xs text-faint">Review context before accepting a student.</p></div>
               {pending > 0 && <span className="rounded-full bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning">{pending} awaiting response</span>}
             </div>
-            {pending === 0 ? <EmptyState title="Inbox zero" body="New requests matching your subjects will appear here." /> : <RequestInbox requests={view.requests} />}
+            {pending === 0 ? <EmptyState title="Inbox zero" body="New requests matching your subjects will appear here." /> : <RequestInbox requests={view.requests} onDecide={decide} />}
           </section>
 
           <ActivityChart
@@ -84,21 +96,7 @@ export function MentorDashboard() {
 
         <aside className="space-y-5 lg:col-span-4">
           {next ? (
-            <Card className="overflow-hidden p-0">
-              <div className="border-b border-line bg-gradient-to-r from-primary-soft to-surface px-5 py-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary-text">Next session</p>
-              </div>
-              <div className="p-5">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-on-primary">{next.with.split(" ").map((part) => part[0]).join("")}</span>
-                  <div><p className="font-sans text-sm font-semibold text-fg">{next.with}</p><p className="mt-0.5 text-xs text-faint">{next.year} · {next.branch}</p></div>
-                </div>
-                <h3 className="mt-5 font-sans text-lg font-semibold text-fg">{next.topic}</h3>
-                <p className="mt-1 text-xs leading-5 text-muted">{next.concept}</p>
-                <div className="mt-4 flex flex-wrap gap-2"><Badge tone="primary"><IconCalendar className="h-3 w-3" /> {next.day}</Badge><Badge><IconClock className="h-3 w-3" /> {next.time}</Badge></div>
-                <div className="mt-5"><Button full><IconMessage /> Open session</Button></div>
-              </div>
-            </Card>
+            <SessionCard session={next} perspective="mentor" featured />
           ) : <EmptyState title="No upcoming session" body="Accepted bookings will appear here." />}
 
           <OnlineToggle />
@@ -137,9 +135,9 @@ export function MentorDashboard() {
           <div className="grid gap-4 md:grid-cols-2">
             {view.doubts.map((doubt) => (
               <article key={doubt.id} className="rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgb(23_26_43/0.02)]">
-                <div className="flex flex-wrap items-center gap-2"><span className="font-sans text-sm font-semibold text-fg">{doubt.from}</span><span className="text-[11px] text-faint">{doubt.year}</span><Badge>{doubt.topic}</Badge><span className="ml-auto text-[10px] text-faint">{doubt.asked}</span></div>
+                <div className="flex flex-wrap items-center gap-2"><span className="font-sans text-sm font-semibold text-fg">{doubt.from}</span><span className="text-[11px] text-faint">{doubt.year}</span><Badge>{doubt.topic}</Badge><span className="ml-auto text-[10px] text-faint">{doubt.asked} · {doubt.answers === 0 ? "unanswered" : `${doubt.answers} answered`}</span></div>
                 <p className="mt-4 text-sm leading-6 text-muted">{doubt.text}</p>
-                <button type="button" className={`mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary-soft px-4 text-xs font-bold text-primary-text hover:bg-primary hover:text-on-primary ${focus}`}><IconMessage /> Answer doubt</button>
+                <Link href={`/chat?s=${doubt.id}`} className={`mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary-soft px-4 text-xs font-bold text-primary-text hover:bg-primary hover:text-on-primary ${focus}`}><IconMessage /> Answer doubt</Link>
               </article>
             ))}
           </div>

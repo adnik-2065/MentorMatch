@@ -18,6 +18,7 @@ import {
 } from "@/lib/onboarding";
 import { hasPlacementGoals, prepTopicsFor } from "@/lib/placement";
 import { useMentorDirectory } from "@/lib/mentorDirectory";
+import { requestTriage } from "@/lib/triage-client";
 
 type Patch = (patch: Partial<OnboardingState>) => void;
 type StepProps = { state: OnboardingState; patch: Patch; nav: StepNav };
@@ -198,22 +199,19 @@ export function StuckStep({ state, patch, nav }: StepProps) {
   const [running, setRunning] = useState(false);
   const error = nav.errors.stuckOn;
 
-  const run = () => {
+  const run = async () => {
     const text = state.stuckOn.trim();
     if (text.length < 10) return nav.next();
     setRunning(true);
-    // Rules-based keyword triage; the short pause only lets the status read naturally.
-    setTimeout(() => {
-      setRunning(false);
-      nav.next({
-        triage: runTriage(state.stuckOn, {
+    try {
+      const triage = await requestTriage(state.stuckOn, {
           branch: state.branch,
           topics: state.learnTopics,
-          targetCompanies: state.targetCompanies,
-          targetRoles: state.targetRoles,
-        }),
       });
-    }, 600);
+      nav.next({ triage });
+    } finally {
+      setRunning(false);
+    }
   };
 
   return (

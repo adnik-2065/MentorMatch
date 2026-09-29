@@ -138,6 +138,16 @@ export function IconMessage({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
+export function IconHelp({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.2a2.6 2.6 0 1 1 3.4 2.5c-.6.2-.9.8-.9 1.4v.4" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
+}
+
 export function IconClock({ className = "h-4 w-4" }: IconProps) {
   return (
     <svg {...base} className={className}>
@@ -179,6 +189,23 @@ export function IconTrend({ className = "h-4 w-4" }: IconProps) {
     <svg {...base} className={className}>
       <path d="M3 17l6-6 4 4 7-7" />
       <path d="M14 8h6v6" />
+    </svg>
+  );
+}
+
+export function IconHourglass({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6 3h12M6 21h12" />
+      <path d="M8 3v3.5c0 2 4 3.5 4 5.5s-4 3.5-4 5.5V21M16 3v3.5c0 2-4 3.5-4 5.5s4 3.5 4 5.5V21" />
+    </svg>
+  );
+}
+
+export function IconSend({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M21 3 10.5 13.5M21 3l-6.5 18-4-8-8-4L21 3Z" />
     </svg>
   );
 }
