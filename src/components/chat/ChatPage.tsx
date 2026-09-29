@@ -4,14 +4,28 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui";
-import { DashboardGate, DashboardShell, EmptyState } from "@/components/dashboard/Shell";
+import { DashboardGate, DashboardShell } from "@/components/dashboard/Shell";
 import { IconArrowLeft, IconArrowRight, IconClock, IconSend, IconSparkle } from "@/components/icons";
 import { mentorView, studentView, useAccount } from "@/lib/account";
-import { appendMessage, buildThreads, loadMessages, type ChatMessage, type Thread } from "@/lib/chat";
+import {
+  appendMessage,
+  ASSISTANT_ID,
+  buildThreads,
+  loadMessages,
+  type ChatMessage,
+  type Thread,
+} from "@/lib/chat";
 import { doubtToFeed } from "@/lib/doubts";
+import { requestAssistant, type AssistantTurn } from "@/lib/triage-client";
 
 const focus =
   "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+
+/** Which hat this room is — the assistant is neither. */
+function roleLabel(thread: Thread) {
+  if (thread.kind === "assistant") return "AI";
+  return thread.role === "student" ? "Learning" : "Mentoring";
+}
 
 function ThreadList({
   threads,
@@ -53,11 +67,13 @@ function ThreadList({
               </div>
               <p className="mt-1 truncate text-xs text-muted">{thread.topic}</p>
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-faint">
-                <IconClock className="h-3 w-3 shrink-0" />
+                {thread.kind === "assistant" ? (
+                  <IconSparkle className="h-3 w-3 shrink-0" />
+                ) : (
+                  <IconClock className="h-3 w-3 shrink-0" />
+                )}
                 {thread.slot}
-                <span className="ml-auto shrink-0">
-                  {thread.role === "student" ? "Learning" : "Mentoring"}
-                </span>
+                <span className="ml-auto shrink-0">{roleLabel(thread)}</span>
               </p>
             </button>
           </li>
@@ -99,12 +115,39 @@ function Bubble({ message }: { message: ChatMessage }) {
   );
 }
 
-function Composer({ to, onSend }: { to: string; onSend: (text: string) => void }) {
+/** Three dots while the model writes — the only room where you wait on a reply. */
+function Typing() {
+  return (
+    <li className="flex justify-start">
+      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-line bg-surface px-4 py-3.5">
+        <span className="sr-only">Study buddy is typing</span>
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            aria-hidden="true"
+            className="h-1.5 w-1.5 animate-bounce rounded-full bg-faint motion-reduce:animate-none"
+            style={{ animationDelay: `${i * 150}ms` }}
+          />
+        ))}
+      </div>
+    </li>
+  );
+}
+
+function Composer({
+  to,
+  busy = false,
+  onSend,
+}: {
+  to: string;
+  busy?: boolean;
+  onSend: (text: string) => void;
+}) {
   const [draft, setDraft] = useState("");
 
   function send() {
     const text = draft.trim();
-    if (!text) return;
+    if (!text || busy) return;
     onSend(text);
     setDraft("");
   }
@@ -132,12 +175,12 @@ function Composer({ to, onSend }: { to: string; onSend: (text: string) => void }
             send();
           }
         }}
-        placeholder={`Message ${to}…`}
+        placeholder={busy ? "Waiting for a reply…" : `Message ${to}…`}
         className={`max-h-32 min-h-11 flex-1 resize-none rounded-lg border border-line bg-surface px-3.5 py-3 text-sm leading-relaxed text-fg transition-colors duration-200 placeholder:text-faint hover:border-line-strong focus-visible:border-primary ${focus}`}
       />
       <button
         type="submit"
-        disabled={!draft.trim()}
+        disabled={!draft.trim() || busy}
         className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45 ${focus}`}
       >
         <IconSend />
@@ -154,16 +197,22 @@ export function ChatPage() {
 
   const [sent, setSent] = useState<ChatMessage[]>([]);
   const [opened, setOpened] = useState<string[]>([]);
+  const [thinking, setThinking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  // Which room is on screen when a reply lands — switching threads mid-answer
+  // must not drop the assistant's message into somebody else's transcript.
+  const openRef = useRef<string | null>(null);
 
   const student = ready && account ? studentView(account, profile, bookings) : null;
   const mentor = ready && account ? mentorView(account, profile, bookings, doubts) : null;
+  const topics = student?.topics ?? profile?.learnTopics ?? [];
   const threads = buildThreads({
     demo: account === "demo",
     learning: student?.sessions ?? [],
     mentoring: mentor?.sessions ?? [],
     doubts: mentor?.doubts ?? [],
     asked: doubts.map((d) => doubtToFeed(d, student?.name ?? "You", student?.year ?? "")),
+    topics,
   });
 
   const requested = params.get("s");
@@ -172,8 +221,10 @@ export function ChatPage() {
 
   // Each room keeps its own history, so reload whenever the selection changes.
   useEffect(() => {
+    openRef.current = activeId;
     if (!account || !activeId) return;
     setSent(loadMessages(account, activeId));
+    setThinking(false);
     setOpened((list) => (list.includes(activeId) ? list : [...list, activeId]));
   }, [account, activeId]);
 
@@ -182,7 +233,7 @@ export function ChatPage() {
   useEffect(() => {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, activeId]);
+  }, [messages.length, activeId, thinking]);
 
   if (!ready || !account) {
     return (
@@ -199,9 +250,32 @@ export function ChatPage() {
   const unreadFor = (thread: Thread) => (opened.includes(thread.id) ? 0 : thread.unread);
   const totalUnread = threads.reduce((n, t) => n + unreadFor(t), 0);
   const name = student?.name ?? mentor?.name ?? profile?.name?.trim() ?? "You";
-  const meta = [student?.year ?? mentor?.year ?? "", student?.branch ?? mentor?.branch ?? ""]
-    .filter(Boolean)
-    .join(" ");
+  const year = student?.year ?? mentor?.year ?? "";
+  const branch = student?.branch ?? mentor?.branch ?? "";
+  const meta = [year, branch].filter(Boolean).join(" ");
+  // Everything except the study buddy. Empty means nobody has accepted a slot yet.
+  const human = threads.filter((t) => t.kind !== "assistant");
+
+  function send(text: string) {
+    if (!account || !active) return;
+
+    const mine = appendMessage(account, active.id, text);
+    setSent((list) => [...list, mine]);
+    if (active.kind !== "assistant") return;
+
+    // The last few exchanges are the context; the system line isn't a turn.
+    const turns: AssistantTurn[] = [...messages, mine]
+      .filter((m) => m.from !== "system")
+      .slice(-12)
+      .map((m) => ({ role: m.from === "me" ? "user" : "model", text: m.text }));
+
+    setThinking(true);
+    void requestAssistant(turns, { name, year, branch, topics }).then(({ reply }) => {
+      const answer = appendMessage(account, ASSISTANT_ID, reply, "them");
+      if (openRef.current === ASSISTANT_ID) setSent((list) => [...list, answer]);
+      setThinking(false);
+    });
+  }
 
   return (
     <DashboardShell
@@ -214,114 +288,119 @@ export function ChatPage() {
       <h1 className="font-sans text-2xl font-semibold text-fg sm:text-3xl">Chat</h1>
       <p className="mt-1.5 max-w-[60ch] text-sm leading-relaxed text-muted">
         One room per accepted session, and one per doubt you asked. A session room stays open
-        before and after the slot; a doubt room is open from the moment you post it.
+        before and after the slot; a doubt room is open from the moment you post it. The study
+        buddy at the top is an AI — it covers the wait until a senior replies.
       </p>
 
-      {threads.length === 0 ? (
-        <div className="mt-8">
-          <EmptyState
-            title="No conversations yet"
-            body="A session room opens once the mentor accepts your slot — or, wearing the other hat, once you accept a junior's. A doubt opens one straight away."
-            action={
-              <div className="flex flex-wrap justify-center gap-3">
-                <Link
-                  href="/ask"
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover ${focus}`}
-                >
-                  Ask a doubt
-                  <IconArrowRight />
-                </Link>
-                <Link
-                  href="/book"
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-5 text-sm font-medium text-fg transition-colors duration-200 hover:bg-inset ${focus}`}
-                >
-                  Book a session
-                </Link>
-              </div>
-            }
+      {human.length === 0 && (
+        <div className="mt-6 rounded-xl border border-dashed border-line-strong bg-surface p-4">
+          <p className="font-sans text-sm font-semibold text-fg">No senior in here yet</p>
+          <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-muted">
+            A session room opens once the mentor accepts your slot — or, wearing the other hat,
+            once you accept a junior&rsquo;s. A doubt opens one straight away.
+          </p>
+          <div className="mt-3.5 flex flex-wrap gap-3">
+            <Link
+              href="/ask"
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover ${focus}`}
+            >
+              Ask a doubt
+              <IconArrowRight />
+            </Link>
+            <Link
+              href="/book"
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-5 text-sm font-medium text-fg transition-colors duration-200 hover:bg-inset ${focus}`}
+            >
+              Book a session
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-[17rem_1fr]">
+        <div className={requested ? "hidden lg:block" : "block"}>
+          <ThreadList
+            threads={threads}
+            activeId={activeId}
+            unreadFor={unreadFor}
+            onOpen={(id) => router.replace(`/chat?s=${id}`, { scroll: false })}
           />
         </div>
-      ) : (
-        <div className="mt-6 grid gap-4 lg:grid-cols-[17rem_1fr]">
-          <div className={requested ? "hidden lg:block" : "block"}>
-            <ThreadList
-              threads={threads}
-              activeId={activeId}
-              unreadFor={unreadFor}
-              onOpen={(id) => router.replace(`/chat?s=${id}`, { scroll: false })}
-            />
-          </div>
 
-          {active && (
-            <section
-              aria-label={`Conversation with ${active.with}`}
-              className={`flex h-[34rem] flex-col rounded-xl border border-line bg-inset ${
-                requested ? "flex" : "hidden lg:flex"
-              }`}
-            >
-              <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-surface px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => router.replace("/chat", { scroll: false })}
-                  className={`-ml-2 inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors duration-200 hover:bg-inset hover:text-fg lg:hidden ${focus}`}
-                >
-                  <IconArrowLeft />
-                  All chats
-                </button>
+        {active && (
+          <section
+            aria-label={`Conversation with ${active.with}`}
+            className={`flex h-[34rem] flex-col rounded-xl border border-line bg-inset ${
+              requested ? "flex" : "hidden lg:flex"
+            }`}
+          >
+            <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-surface px-4 py-3">
+              <button
+                type="button"
+                onClick={() => router.replace("/chat", { scroll: false })}
+                className={`-ml-2 inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors duration-200 hover:bg-inset hover:text-fg lg:hidden ${focus}`}
+              >
+                <IconArrowLeft />
+                All chats
+              </button>
 
-                <div className="min-w-0">
-                  <h2 className="truncate font-sans text-sm font-semibold text-fg">{active.with}</h2>
-                  <p className="truncate text-xs text-faint">
-                    {[active.year, active.branch].filter(Boolean).join(" · ")}
-                  </p>
-                </div>
+              <div className="min-w-0">
+                <h2 className="truncate font-sans text-sm font-semibold text-fg">{active.with}</h2>
+                <p className="truncate text-xs text-faint">
+                  {[active.year, active.branch].filter(Boolean).join(" · ")}
+                </p>
+              </div>
 
-                <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <Badge>{active.topic}</Badge>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <Badge>{active.topic}</Badge>
+                {active.kind === "assistant" ? (
+                  <Badge tone="primary">
+                    <IconSparkle className="h-3 w-3" />
+                    AI, not a senior
+                  </Badge>
+                ) : (
                   <Badge tone={active.kind === "doubt" ? "neutral" : "primary"}>
                     <IconClock className="h-3 w-3" />
                     {active.slot}
                   </Badge>
-                </div>
-              </header>
-
-              {active.kind === "session" && active.concept && (
-                <p className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2.5 text-xs text-muted">
-                  <span className="text-primary-text">
-                    <IconSparkle className="h-3.5 w-3.5" />
-                  </span>
-                  Concept gap: <span className="font-medium text-fg">{active.concept}</span>
-                </p>
-              )}
-
-              {/* The live region is the scroller, so the list keeps its list semantics. */}
-              <div
-                ref={scroller}
-                role="log"
-                aria-live="polite"
-                aria-label="Messages"
-                className="flex-1 overflow-y-auto px-4 py-4"
-              >
-                <ul className="space-y-3">
-                  {messages.map((message) => (
-                    <Bubble key={message.id} message={message} />
-                  ))}
-                </ul>
+                )}
               </div>
+            </header>
 
-              <Composer
-                to={active.to}
-                onSend={(text) => setSent((list) => [...list, appendMessage(account, active.id, text)])}
-              />
-            </section>
-          )}
-        </div>
-      )}
+            {active.kind === "session" && active.concept && (
+              <p className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2.5 text-xs text-muted">
+                <span className="text-primary-text">
+                  <IconSparkle className="h-3.5 w-3.5" />
+                </span>
+                Concept gap: <span className="font-medium text-fg">{active.concept}</span>
+              </p>
+            )}
+
+            {/* The live region is the scroller, so the list keeps its list semantics. */}
+            <div
+              ref={scroller}
+              role="log"
+              aria-live="polite"
+              aria-label="Messages"
+              className="flex-1 overflow-y-auto px-4 py-4"
+            >
+              <ul className="space-y-3">
+                {messages.map((message) => (
+                  <Bubble key={message.id} message={message} />
+                ))}
+                {thinking && <Typing />}
+              </ul>
+            </div>
+
+            <Composer to={active.to} busy={thinking} onSend={send} />
+          </section>
+        )}
+      </div>
 
       <p className="mt-10 border-t border-line pt-6 text-xs leading-relaxed text-faint">
         {account === "demo"
           ? "Sample account — these transcripts are seeded so you can see a room in use. Anything you send stays in the sample account."
-          : "Messages are saved in this browser. Delivery, notifications and AI recaps arrive with the backend."}
+          : "Messages are saved in this browser; delivery and notifications arrive with the backend. Study buddy replies come from Gemini and no senior sees them."}
       </p>
     </DashboardShell>
   );

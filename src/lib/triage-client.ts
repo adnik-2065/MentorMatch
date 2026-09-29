@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Talking to `/api/triage` and `/api/recap` from the browser.
+ * Talking to `/api/triage`, `/api/recap` and `/api/assistant` from the browser.
  *
- * Both always resolve. If the route is unreachable — offline, a static export,
+ * They always resolve. If the route is unreachable — offline, a static export,
  * a dev server that isn't running the API — the keyword table answers instead
  * and the UI says so. A student never gets an error where an answer was
  * promised.
@@ -35,6 +35,36 @@ export async function requestTriage(
     return data.concept && data.topic ? data : runTriage(text, context);
   } catch {
     return runTriage(text, context);
+  }
+}
+
+export type AssistantTurn = { role: "user" | "model"; text: string };
+
+export type AssistantReply = { reply: string; source: "ai" | "offline" };
+
+/** The study buddy. Never rejects — an unreachable route reads as the AI being down. */
+export async function requestAssistant(
+  turns: AssistantTurn[],
+  context: { name?: string; year?: string; branch?: string; topics?: string[] } = {},
+): Promise<AssistantReply> {
+  const offline: AssistantReply = {
+    reply:
+      "I couldn't reach the model just now — try again in a moment. If it's urgent, post it as a doubt and any senior who claims the subject can pick it up.",
+    source: "offline",
+  };
+
+  try {
+    const res = await fetch("/api/assistant", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ turns, context }),
+    });
+    if (!res.ok) return offline;
+
+    const data = (await res.json()) as Partial<AssistantReply>;
+    return data.reply ? { reply: data.reply, source: data.source ?? "offline" } : offline;
+  } catch {
+    return offline;
   }
 }
 

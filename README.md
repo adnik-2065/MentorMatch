@@ -40,7 +40,7 @@ MentorMatch turns that informal, lossy, luck-based network into a searchable, ve
 
 ## 🧠 The AI Kick: Proof of Skill + Mentor Twin
 
-Most mentorship platforms bolt on a chatbot and call it AI. MentorMatch uses AI for the two things that actually break peer mentoring: **trust** and **availability**.
+Most mentorship platforms bolt on a chatbot and call it the product. MentorMatch has one — the study buddy in `/chat` — but it's a waiting room, labelled as an AI and built to hand you to a senior. The AI that matters here is aimed at the two things that actually break peer mentoring: **trust** and **availability**.
 
 ### 1. SkillProof — verified skills, not self-declared ones
 
@@ -91,6 +91,7 @@ Seniors stop answering the same question 40 times. Juniors get unblocked at midn
 |---|---|---|
 | **Doubt Triage** | Paste your error log or describe the problem in plain English. The AI identifies the *actual* concept gap — a "React bug" that's really a JS closure misunderstanding — and routes you to the right mentor, not the obvious one. | ✅ built |
 | **Session Recap** | Generates notes, next steps, and practice tasks after a session. Nothing gets forgotten. | ✅ built |
+| **Study Buddy** | A chat room in `/chat` with no senior on the other side. It covers the wait between posting a doubt at 2 AM and a senior reading it at 9 — and hands over the moment the question needs someone to read your repo or speak from experience. | ✅ built |
 | **Match Explanations** | Every recommendation comes with a reason: *"Aarav is suggested because your error is a volume-mount issue, and he has verified Docker Compose experience across 4 repos."* No black-box ranking. | ✅ built (rule-based, not the model) |
 | **Semantic Skill Graph** | Understands that `Kubernetes` implies `Docker`, that `Spring Boot` implies `Java` + `Maven`, that `CI/CD` touches `Git`. Surfaces mentors you'd never have thought to search for. | planned |
 | **Roadmap Generator** | Tell it where you are and where you want to be. It produces a milestone plan with topics, practice tasks, and a suggested mentor per milestone. | planned |
@@ -323,15 +324,16 @@ One codebase, one database, one deploy. Next.js handles both the UI and the API 
 |---|---|---|---|
 | Doubt triage & routing | `gemini-3.5-flash` | High volume, needs to feel instant, cheap | ✅ wired — `/api/triage` |
 | Session recaps & practice tasks | `gemini-3.5-flash` | Structured JSON output, runs after every session | ✅ wired — `/api/recap` |
+| Study buddy chat | `gemini-3.5-flash` | Multi-turn free text, has to feel like a chat | ✅ wired — `/api/assistant` |
 | SkillProof code analysis & viva | a pro model | Long repo context, deeper reasoning | mock (`analyseRepos`) |
 | Mentor Twin responses | a pro model | Quality matters — it's speaking as a mentor | not started |
 | Semantic skill graph | `gemini-embedding-001` | Embeddings for mentor/topic similarity search | not started |
 
 > Check the [current Gemini model list](https://ai.google.dev/gemini-api/docs/models) before wiring these up — Google rotates model IDs faster than this README updates. `src/lib/ai/gemini.ts` takes a model chain for that reason: it tries `GEMINI_MODEL`, then `gemini-3.5-flash`, then `gemini-3.1-flash-lite`, and moves on when one answers 404 or 503.
 
-**How the AI is called.** No SDK — `src/lib/ai/gemini.ts` posts to `v1beta/models/{model}:generateContent` with plain `fetch`, using `responseMimeType: "application/json"` + `responseSchema` so every answer arrives as typed JSON, and a 20-second `AbortSignal.timeout`. The key is read **only** inside route handlers under `src/app/api/`, never with a `NEXT_PUBLIC_` prefix, so it cannot reach the browser bundle.
+**How the AI is called.** No SDK — `src/lib/ai/gemini.ts` posts to `v1beta/models/{model}:generateContent` with plain `fetch` and a 20-second `AbortSignal.timeout`. `generateJSON` uses `responseMimeType: "application/json"` + `responseSchema` so triage and recaps arrive as typed JSON; `generateText` sends a `contents` array of turns for the chat. Neither throws. The key is read **only** inside route handlers under `src/app/api/`, never with a `NEXT_PUBLIC_` prefix, so it cannot reach the browser bundle.
 
-**It always answers.** `/api/triage` and `/api/recap` fall back to a deterministic keyword table (`runTriage`) and an offline recap when there's no key, no network, or the model is busy. The response carries a `source` field — `"ai"` or `"rules"`/`"offline"` — and the UI says which one you got rather than pretending. Mentor ranking is never the model's job: `rankMentors()` sorts on real skills, branch and ratings whichever side named the topic.
+**It always answers.** `/api/triage` and `/api/recap` fall back to a deterministic keyword table (`runTriage`) and an offline recap when there's no key, no network, or the model is busy; `/api/assistant` falls back to a line that says the model is unreachable and points at `/ask` and `/book`. The response carries a `source` field — `"ai"` or `"rules"`/`"offline"` — and the UI says which one you got rather than pretending. Mentor ranking is never the model's job: `rankMentors()` sorts on real skills, branch and ratings whichever side named the topic.
 
 ---
 
@@ -390,6 +392,8 @@ Two ways to see the other half of that, since no server can deliver a reply yet:
 - **Your own account** — the pending card carries an *Accept as \<mentor\>* button, labelled as the stand-in it is. It calls the same `acceptBooking()` the inbox does.
 
 **Chat** — one room per *accepted* session and one per doubt, listed for both hats at once (`Learning` / `Mentoring`). Session rooms open before the slot and stay open after it; doubt rooms are open from the moment you post. A doubt you asked is one room, not two, even in the sample account where you're on both ends of it. `Enter` sends, `Shift+Enter` breaks the line, and the room deep-links as `/chat?s=<session or doubt id>`.
+
+**Study buddy** — the first room in that list is an AI, tagged `AI` and `AI, not a senior`, and its opening system line says so before you type. It exists because the gap between posting a doubt at 2 AM and a senior reading it at 9 is where juniors give up. `POST /api/assistant` sends the last twelve turns plus your year, branch and subjects to `gemini-3.5-flash`; the reply comes back in one piece (no streaming, so the always-answers guarantee still holds) and is stored as the other side of the room. The prompt keeps it short, makes it say when it doesn't know, and makes it hand over rather than bluff: anything needing your actual repo or someone's experience gets pointed at `/book`, anything it's unsure of at `/ask`, and after three or four exchanges without progress it says so. It won't write your assignment. It is deliberately *not* the product — `/chat?s=assistant` is a waiting room, and the seniors are the point.
 
 **Recaps** — *Your notes vault* on `/dashboard` lists every room that's finished without a write-up: a session waiting to be rated, and any doubt you've asked. *Generate recap* sends the topic, the concept and whatever was actually typed in that room to `POST /api/recap`, which returns a title, two to four things you covered and two or three practice tasks. The tasks are checkboxes and they drive the progress bar; regenerating replaces that room's recap rather than stacking a second copy. An empty room still works — the model writes the practice for the concept instead of inventing a conversation.
 
@@ -498,10 +502,11 @@ MentorMatch/
 │   │   ├── mentor/            # ✅ built — mentor: requests, schedule, score
 │   │   ├── ask/               # ✅ built — post a doubt, no slot needed
 │   │   ├── book/              # ✅ built — mentor search + slot requests
-│   │   ├── chat/              # ✅ built — one room per session or doubt
+│   │   ├── chat/              # ✅ built — session, doubt, and AI study-buddy rooms
 │   │   └── api/
 │   │       ├── triage/        # ✅ built — doubt in, concept gap out
 │   │       ├── recap/         # ✅ built — session in, recap + next steps out
+│   │       └── assistant/     # ✅ built — one study-buddy reply per turn
 │   ├── components/
 │   │   ├── ui.tsx             # ✅ Button, Input, Chip, Card, Badge…
 │   │   ├── SignIn.tsx         # ✅ account picker — yours or a sample one
@@ -510,7 +515,7 @@ MentorMatch/
 │   │   ├── booking/           # ✅ mentor search, slot picker, confirmation
 │   │   ├── doubt/             # ✅ subject picker, triage, ask form
 │   │   ├── triage/            # ✅ the concept-gap card, shared by all three
-│   │   └── chat/              # ✅ room list, transcript, composer
+│   │   └── chat/              # ✅ room list, transcript, composer, AI room
 │   ├── lib/
 │   │   ├── onboarding.ts      # ✅ branch subjects, mock mentors, offline triage
 │   │   ├── account.ts         # ✅ stored profile → dashboard view (or sample)
@@ -518,12 +523,13 @@ MentorMatch/
 │   │   ├── bookings.ts        # ✅ per-account booking store + slot conflicts
 │   │   ├── doubts.ts          # ✅ per-account asked-doubt store + age labels
 │   │   ├── recaps.ts          # ✅ per-account recap store + practice ticks
-│   │   ├── chat.ts            # ✅ threads from sessions and doubts + messages
-│   │   ├── triage-client.ts   # ✅ browser → the two API routes, with fallback
-│   │   └── ai/                # server only — the key never leaves this folder
-│   │       ├── gemini.ts      # ✅ fetch + JSON schema + model fallback chain
+│   │   ├── chat.ts            # ✅ threads from sessions, doubts + the AI room
+│   │   ├── triage-client.ts   # ✅ browser API calls with offline fallbacks
+│   │   ├── ai/                # server only — the key never leaves this folder
+│   │       ├── gemini.ts      # ✅ fetch, JSON + free text, model fallback chain
 │   │       ├── triage.ts      # ✅ concept gap from a doubt
 │   │       ├── recap.ts       # ✅ recap + next steps from a room
+│   │       └── assistant.ts   # ✅ study buddy prompt + hand-over rules
 │   └── server/
 │       ├── db.ts              # server-only Postgres pool
 │       ├── profileApi.ts      # profile validation and API operations
@@ -559,6 +565,7 @@ MentorMatch/
 
 **Phase 3 — The AI Kick**
 - [x] Doubt triage — `/api/triage`, Gemini with an offline fallback
+- [x] Study buddy chat — `/api/assistant`, labelled AI, hands over to seniors
 - [ ] Smart Match beyond skill + rating sorting
 - [ ] SkillProof: GitHub analysis + adaptive viva + badges
 - [ ] Semantic skill graph (`pgvector` + embeddings)

@@ -77,6 +77,64 @@ export async function generateJSON<T>({
   return null;
 }
 
+/** One turn of a conversation, in the order it happened. */
+export type Turn = { role: "user" | "model"; text: string };
+
+/**
+ * Free-text, multi-turn — the chat assistant. Same key, same model chain and
+ * the same "returns null rather than throwing" contract as `generateJSON`.
+ */
+export async function generateText({
+  system,
+  turns,
+  temperature = 0.6,
+  maxTokens = 600,
+}: {
+  system: string;
+  turns: Turn[];
+  temperature?: number;
+  maxTokens?: number;
+}): Promise<{ text: string; model: string } | null> {
+  const key = process.env.GEMINI_API_KEY?.trim();
+  if (!key || turns.length === 0) return null;
+
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: system }] },
+    contents: turns.map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] })),
+    generationConfig: { temperature, maxOutputTokens: maxTokens },
+  });
+
+  for (const model of models()) {
+    try {
+      const res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body,
+        signal: AbortSignal.timeout(20_000),
+      });
+
+      if (!res.ok) continue;
+
+      const json = (await res.json()) as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+      };
+      // A long answer arrives split across parts; a thinking model puts an
+      // empty one first. Join them rather than reading parts[0] and losing text.
+      const text = (json.candidates?.[0]?.content?.parts ?? [])
+        .map((part) => part.text ?? "")
+        .join("")
+        .trim();
+      if (!text) continue;
+
+      return { text, model };
+    } catch {
+      // Timeout or network error — try the next model, then give up.
+    }
+  }
+
+  return null;
+}
+
 /** Models pad lists and occasionally repeat the input; keep them short and clean. */
 export function cleanList(value: unknown, max: number): string[] {
   if (!Array.isArray(value)) return [];
