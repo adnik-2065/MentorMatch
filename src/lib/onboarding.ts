@@ -26,6 +26,10 @@ export type Triage = {
   concept: string;
   explanation: string;
   topic: string;
+  /** The neighbouring ideas worth reading next — step 2 of the flow. */
+  related: string[];
+  /** "ai" when Gemini answered, "rules" when the offline keyword table did. */
+  source: "ai" | "rules";
   mentors: { mentor: Mentor; reason: string }[];
 };
 
@@ -682,6 +686,7 @@ const TRIAGE_RULES: {
   topic: string;
   concept: string;
   explanation: string;
+  related: string[];
 }[] = [
   {
     match: ["docker", "container", "compose", "volume", "image", "dockerfile"],
@@ -689,6 +694,7 @@ const TRIAGE_RULES: {
     concept: "Container lifecycle & volume mounts",
     explanation:
       "Your container exits because nothing holds the main process open, and your edits vanish because the source directory isn't mounted as a volume.",
+    related: ["Docker volumes", "Bind mounts", "Docker Compose", "Image layers"],
   },
   {
     match: ["git", "merge", "rebase", "conflict", "commit", "branch", "push"],
@@ -696,6 +702,7 @@ const TRIAGE_RULES: {
     concept: "Branch history & merge conflicts",
     explanation:
       "This isn't really a Git command problem — it's about what a commit graph looks like after diverging branches.",
+    related: ["Merge vs rebase", "Detached HEAD", "Remote tracking branches", "Interactive staging"],
   },
   {
     match: ["segfault", "pointer", "malloc", "memory", "segmentation", "free"],
@@ -703,6 +710,7 @@ const TRIAGE_RULES: {
     concept: "Pointers & manual memory management",
     explanation:
       "The crash is a symptom; the gap is understanding what your pointer actually holds after the allocation.",
+    related: ["Stack vs heap", "Dangling pointers", "malloc/free pairing", "Array decay"],
   },
   {
     match: ["java", "nullpointer", "jvm", "spring", "class", "object"],
@@ -710,6 +718,7 @@ const TRIAGE_RULES: {
     concept: "References, null safety & object lifecycle",
     explanation:
       "The exception points at the line that failed, not the line where the object was never assigned.",
+    related: ["Object lifecycle", "Optional & null safety", "Garbage collection", "Stack traces"],
   },
   {
     match: ["sql", "query", "join", "database", "dbms", "table", "index"],
@@ -717,6 +726,7 @@ const TRIAGE_RULES: {
     concept: "Joins & query planning",
     explanation:
       "The query returns wrong rows because the join type doesn't match the relationship between your tables.",
+    related: ["Inner vs outer joins", "Cardinality", "Query plans", "Indexes"],
   },
   {
     match: ["beam", "bending", "truss", "moment", "staad", "slab", "column", "load"],
@@ -724,6 +734,7 @@ const TRIAGE_RULES: {
     concept: "Load paths & support conditions",
     explanation:
       "The numbers come out wrong because the supports you assumed don't match how the load actually travels to the ground.",
+    related: ["Support conditions", "Load paths", "Bending moment diagrams", "Degrees of freedom"],
   },
   {
     match: ["thermo", "entropy", "enthalpy", "carnot", "heat transfer", "cycle", "steam"],
@@ -731,6 +742,7 @@ const TRIAGE_RULES: {
     concept: "Choosing the system boundary",
     explanation:
       "Most of these questions get easier the moment you fix what's inside the control volume and what crosses it.",
+    related: ["Control volume vs control mass", "First law bookkeeping", "Entropy generation", "Process vs state"],
   },
   {
     match: ["motor", "transformer", "torque", "power factor", "alternator", "winding", "load flow"],
@@ -738,6 +750,7 @@ const TRIAGE_RULES: {
     concept: "Equivalent circuits & phasor reasoning",
     explanation:
       "The machine isn't behaving oddly — the equivalent circuit you're solving is missing the losses that matter here.",
+    related: ["Equivalent circuits", "Slip & torque", "No-load vs full-load tests", "Phasor diagrams"],
   },
   {
     match: ["arduino", "microcontroller", "embedded", "interrupt", "uart", "i2c", "gpio", "timer"],
@@ -745,6 +758,7 @@ const TRIAGE_RULES: {
     concept: "Peripheral configuration & timing",
     explanation:
       "The code is fine; the peripheral registers aren't set up for the clock and timing your board actually runs at.",
+    related: ["Register maps", "Interrupt service routines", "Volatile & memory-mapped IO", "Clock configuration"],
   },
   {
     match: ["autocad", "solidworks", "catia", "ansys", "cad", "drafting", "assembly", "mesh"],
@@ -752,6 +766,7 @@ const TRIAGE_RULES: {
     concept: "Constraints & model setup",
     explanation:
       "The model fights you because it's under-constrained — fix the references before touching the geometry.",
+    related: ["Layers & properties", "Blocks vs copies", "Model vs paper space", "Plot scale"],
   },
 ];
 
@@ -760,23 +775,29 @@ const DEFAULT_TRIAGE = {
   concept: "Problem decomposition",
   explanation:
     "Before the solution, the gap is breaking the problem into what you're given, what you're solving for, and the step between them.",
+  related: ["Given vs required", "Assumptions", "Unit consistency", "Sanity checks"],
 };
 
 function reasonFor(mentor: Mentor, topic: string) {
-  const verified =
-    mentor.verified === "claimed" ? "self-claimed" : `${mentor.verified}-confidence verified`;
-  return `${verified} in ${topic}, ${mentor.reviews} rated sessions, ${
+  // Ranking fills three slots even when fewer than three seniors claim the
+  // subject, so the reason has to be able to say "not this one, but close".
+  const standing = mentor.skills.includes(topic)
+    ? mentor.verified === "claimed"
+      ? `self-claimed in ${topic}`
+      : `${mentor.verified}-confidence verified in ${topic}`
+    : `doesn't claim ${topic} — teaches ${mentor.skills.slice(0, 2).join(" and ")}`;
+
+  return `${standing}, ${mentor.reviews} rated sessions, ${
     mentor.online ? "online right now" : `next free ${mentor.slots[0].day} ${mentor.slots[0].time}`
   }.`;
 }
 
-/** Mock of `POST /api/match` — swap for the Gemini call when the API exists. */
-export function runTriage(text: string, context: { branch?: string; topics?: string[] } = {}): Triage {
-  const lower = text.toLowerCase();
-  const rule = TRIAGE_RULES.find((r) => r.match.some((k) => lower.includes(k)));
-  const fallback = { ...DEFAULT_TRIAGE, topic: context.topics?.[0] ?? "Engineering Mathematics" };
-  const { topic, concept, explanation } = rule ?? fallback;
-
+/**
+ * Who to put in front of the student for a topic. Deliberately not the model's
+ * job: ranking is over real ratings and real availability, so it stays
+ * deterministic whether the topic came from Gemini or from the keyword table.
+ */
+export function rankMentors(topic: string, branch?: string): Triage["mentors"] {
   // Skill match first, then same branch — a Civil doubt should not surface a CSE senior.
   const ranked = [...MENTORS]
     .sort((a, b) => {
@@ -784,19 +805,40 @@ export function runTriage(text: string, context: { branch?: string; topics?: str
       const bHas = b.skills.includes(topic) ? 1 : 0;
       if (aHas !== bHas) return bHas - aHas;
 
-      const aBranch = a.branch === context.branch ? 1 : 0;
-      const bBranch = b.branch === context.branch ? 1 : 0;
+      const aBranch = a.branch === branch ? 1 : 0;
+      const bBranch = b.branch === branch ? 1 : 0;
       if (aBranch !== bBranch) return bBranch - aBranch;
 
       return b.rating - a.rating;
     })
     .slice(0, 3);
 
+  return ranked.map((mentor) => ({ mentor, reason: reasonFor(mentor, topic) }));
+}
+
+/**
+ * The offline half of triage — a keyword table, no network, no key.
+ *
+ * `POST /api/triage` runs Gemini over the same doubt and returns the same
+ * shape; this is what answers when there's no key, the model is busy, or the
+ * request times out. It is never the wrong answer, just a blunter one.
+ */
+export function runTriage(
+  text: string,
+  context: { branch?: string; topics?: string[] } = {},
+): Triage {
+  const lower = text.toLowerCase();
+  const rule = TRIAGE_RULES.find((r) => r.match.some((k) => lower.includes(k)));
+  const fallback = { ...DEFAULT_TRIAGE, topic: context.topics?.[0] ?? "Engineering Mathematics" };
+  const { topic, concept, explanation, related } = rule ?? fallback;
+
   return {
     topic,
     concept,
     explanation,
-    mentors: ranked.map((mentor) => ({ mentor, reason: reasonFor(mentor, topic) })),
+    related,
+    source: "rules",
+    mentors: rankMentors(topic, context.branch),
   };
 }
 

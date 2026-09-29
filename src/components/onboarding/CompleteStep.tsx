@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, StepHeading } from "@/components/ui";
-import { IconArrowRight, IconCalendar, IconCheck, IconShield } from "@/components/icons";
+import { IconArrowRight, IconCheck, IconHourglass, IconShield } from "@/components/icons";
 import { analyseRepos, type OnboardingState } from "@/lib/onboarding";
 import { saveProfile } from "@/lib/account";
 
@@ -30,16 +30,16 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
           subtitle={
             isMentor
               ? "You're listed and bookable. The first request usually arrives the same day."
-              : "That's it — you leave onboarding with a session, not an empty dashboard."
+              : "That's it — you leave onboarding with a slot asked for, not an empty dashboard."
           }
         />
       </div>
 
       {!isMentor && state.booking && (
-        <Card className="border-success/30 bg-success-soft">
-          <Badge tone="success">
-            <IconCalendar className="h-3 w-3" />
-            Session booked
+        <Card className="border-warning/30 bg-warning-soft">
+          <Badge tone="warning">
+            <IconHourglass className="h-3 w-3" />
+            Request sent
           </Badge>
           <p className="mt-3 font-sans text-xl font-semibold text-fg">
             {state.booking.day}, {state.booking.time} · {state.booking.mentor.name}
@@ -47,8 +47,10 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
           <p className="mt-1.5 text-sm text-muted">
             {state.triage?.topic ?? state.learnTopics[0]} — {state.triage?.concept}
           </p>
-          <p className="mt-3 text-xs leading-relaxed text-faint">
-            The session room opens at slot time. You&apos;ll get a reminder 15 minutes before.
+          <p className="mt-3 max-w-[58ch] text-xs leading-relaxed text-faint">
+            {state.booking.mentor.name.split(" ")[0]} has to accept before the session is on. The
+            slot is held for you until then, and the room opens the moment they say yes — it&apos;s
+            on your dashboard either way.
           </p>
         </Card>
       )}
@@ -116,7 +118,7 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
                 "After 3 sessions, you can train your Mentor Twin.",
               ]
             : [
-                "Your session room opens at slot time — everything happens in chat.",
+                "Once the senior accepts, your room opens in chat — before the slot, not at it.",
                 "You'll rate the session afterwards; that unlocks your next booking.",
                 "An AI recap with practice tasks lands in your notes vault.",
               ]

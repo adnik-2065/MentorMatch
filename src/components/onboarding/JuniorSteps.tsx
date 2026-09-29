@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { Badge, Button, Card, Stars, StepHeading, Textarea } from "@/components/ui";
 import { TopicPicker } from "./TopicPicker";
+import { TriageCard } from "@/components/triage/TriageCard";
 import { IconArrowRight, IconDot, IconShield, IconSparkle } from "@/components/icons";
-import { runTriage, type Mentor, type OnboardingState } from "@/lib/onboarding";
+import { type Mentor, type OnboardingState } from "@/lib/onboarding";
+import { requestTriage } from "@/lib/triage-client";
 
 type Patch = (patch: Partial<OnboardingState>) => void;
 
@@ -80,16 +82,17 @@ export function StuckStep({
 }) {
   const [running, setRunning] = useState(false);
 
-  const run = () => {
+  const run = async () => {
     setRunning(true);
-    // Stands in for POST /api/match — Gemini reads the text and returns the concept gap.
-    setTimeout(() => {
-      patch({
-        triage: runTriage(state.stuckOn, { branch: state.branch, topics: state.learnTopics }),
-      });
-      setRunning(false);
-      next();
-    }, 1400);
+    // POST /api/triage — Gemini reads the text and names the concept gap. Falls
+    // back to the offline keyword table, so this never leaves the step stuck.
+    const triage = await requestTriage(state.stuckOn, {
+      branch: state.branch,
+      topics: state.learnTopics,
+    });
+    patch({ triage });
+    setRunning(false);
+    next();
   };
 
   return (
@@ -259,22 +262,10 @@ export function MatchStep({
     <div className="space-y-7">
       <StepHeading
         title="Here's who can help"
-        subtitle="Top rated for your topic, free soonest. Book one and you're done."
+        subtitle="Top rated for your topic, free soonest. Ask one for a slot and you're done."
       />
 
-      <Card className="border-primary/25 bg-primary-soft/50">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="primary">
-            <IconSparkle className="h-3 w-3" />
-            Concept gap
-          </Badge>
-          <span className="font-sans font-semibold text-fg">{triage.concept}</span>
-          <Badge>{triage.topic}</Badge>
-        </div>
-        <p className="mt-2.5 max-w-[60ch] text-sm leading-relaxed text-muted">
-          {triage.explanation}
-        </p>
-      </Card>
+      <TriageCard triage={triage} />
 
       <ul className="space-y-3">
         {triage.mentors.map(({ mentor, reason }, i) => (
@@ -292,7 +283,7 @@ export function MatchStep({
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={!state.booking} onClick={next}>
           {state.booking
-            ? `Book ${state.booking.day} ${state.booking.time}`
+            ? `Ask for ${state.booking.day} ${state.booking.time}`
             : "Pick a slot to continue"}
           <IconArrowRight />
         </Button>
