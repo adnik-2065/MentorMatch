@@ -44,12 +44,27 @@ export function Button({
 
 const inputClass = `w-full min-h-12 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-fg shadow-sm transition-colors duration-200 placeholder:text-faint hover:border-line-strong ${focus} focus-visible:border-primary`;
 
+/** Hint and error ids for a field, joined for aria-describedby. */
+function describedBy(id: string, hint?: string, error?: string) {
+  return [hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(" ") || undefined;
+}
+
+export function FieldError({ id, children }: { id: string; children?: ReactNode }) {
+  if (!children) return null;
+  return (
+    <p id={id} className="text-xs font-medium text-danger">
+      {children}
+    </p>
+  );
+}
+
 export function Input({
   label,
   hint,
+  error,
   id,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string; id: string }) {
+}: React.InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string; error?: string; id: string }) {
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="block text-sm font-medium text-fg">
@@ -57,15 +72,17 @@ export function Input({
       </label>
       <input
         id={id}
-        aria-describedby={hint ? `${id}-hint` : undefined}
+        aria-describedby={describedBy(id, hint, error)}
+        aria-invalid={error ? true : undefined}
         {...props}
-        className={inputClass}
+        className={`${inputClass} ${error ? "border-danger" : ""}`}
       />
       {hint && (
         <p id={`${id}-hint`} className="text-xs text-faint">
           {hint}
         </p>
       )}
+      <FieldError id={`${id}-error`}>{error}</FieldError>
     </div>
   );
 }
@@ -73,11 +90,13 @@ export function Input({
 export function Textarea({
   label,
   hint,
+  error,
   id,
   ...props
 }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label: string;
   hint?: string;
+  error?: string;
   id: string;
 }) {
   return (
@@ -87,15 +106,17 @@ export function Textarea({
       </label>
       <textarea
         id={id}
-        aria-describedby={hint ? `${id}-hint` : undefined}
+        aria-describedby={describedBy(id, hint, error)}
+        aria-invalid={error ? true : undefined}
         {...props}
-        className={`${inputClass} resize-none leading-relaxed`}
+        className={`${inputClass} resize-none leading-relaxed ${error ? "border-danger" : ""}`}
       />
       {hint && (
         <p id={`${id}-hint`} className="text-xs text-faint">
           {hint}
         </p>
       )}
+      <FieldError id={`${id}-error`}>{error}</FieldError>
     </div>
   );
 }
@@ -105,16 +126,22 @@ export function ChoiceGroup({
   label,
   children,
   hint,
+  error,
+  id,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
+  error?: string;
+  id?: string;
 }) {
+  const errorId = id ? `${id}-error` : undefined;
   return (
-    <fieldset className="space-y-2.5">
+    <fieldset className="space-y-2.5" aria-describedby={error ? errorId : undefined}>
       <legend className="text-sm font-medium text-fg">{label}</legend>
       {hint && <p className="text-xs text-faint">{hint}</p>}
       <div className="flex flex-wrap gap-2">{children}</div>
+      {errorId && <FieldError id={errorId}>{error}</FieldError>}
     </fieldset>
   );
 }
@@ -152,10 +179,12 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
   );
 }
 
-export function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
+export function StepHeading({ title, subtitle, eyebrow }: { title: string; subtitle: string; eyebrow?: string }) {
   return (
     <header className="space-y-2">
-      <h2 className="max-w-[25ch] text-3xl font-semibold leading-tight text-fg sm:text-4xl">{title}</h2>
+      {eyebrow && <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-text">{eyebrow}</p>}
+      {/* tabIndex lets onboarding move focus here on step change without adding a tab stop. */}
+      <h2 tabIndex={-1} className="max-w-[25ch] text-3xl font-semibold leading-tight text-fg outline-none sm:text-4xl">{title}</h2>
       <p className="max-w-[62ch] text-sm leading-6 text-muted sm:text-base">{subtitle}</p>
     </header>
   );

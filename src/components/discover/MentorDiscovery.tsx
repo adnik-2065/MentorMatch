@@ -12,7 +12,9 @@ import {
   IconSearch,
   IconSliders,
 } from "@/components/icons";
-import { loadProfile, saveProfile, useAccount } from "@/lib/account";
+import { ExperienceList, MentorSourceBadges, PlacementBadge } from "@/components/MentorExperience";
+import { loadProfile, saveProfile, syncProfile, useAccount } from "@/lib/account";
+import { useMentorDirectory } from "@/lib/mentorDirectory";
 import {
   matchMentors,
   TARGET_COMPANIES,
@@ -43,6 +45,8 @@ export function MentorDiscovery() {
   const [selected, setSelected] = useState<Mentor | null>(null);
   const [slot, setSlot] = useState<{ day: string; time: string } | null>(null);
   const [booked, setBooked] = useState<Mentor | null>(null);
+  const [targetSync, setTargetSync] = useState<string | null>(null);
+  const directory = useMentorDirectory();
 
   useEffect(() => {
     if (!ready) return;
@@ -54,7 +58,18 @@ export function MentorDiscovery() {
     setTargetCompanies(companies);
     setTargetRoles(roles);
     if (account === "me" && profile) {
-      saveProfile({ ...profile, targetCompanies: companies, targetRoles: roles });
+      const updated = { ...profile, targetCompanies: companies, targetRoles: roles };
+      saveProfile(updated);
+      setTargetSync("Saving…");
+      syncProfile(updated).then((result) =>
+        setTargetSync(
+          result.status === "saved"
+            ? "Goals saved to your profile."
+            : result.status === "unavailable"
+              ? "Goals saved on this device only."
+              : "Couldn't save goals to the server — they're kept on this device.",
+        ),
+      );
     }
   };
 
@@ -67,15 +82,15 @@ export function MentorDiscovery() {
       onlineOnly,
       targetCompanies,
       targetRoles,
-    });
+    }, directory.mentors).filter((match) => match.mentor.slots.length > 0);
     if (sort === "rating") return [...ranked].sort((a, b) => b.mentor.rating - a.mentor.rating);
     if (sort === "available") return [...ranked].sort((a, b) => Number(b.mentor.online) - Number(a.mentor.online));
     return ranked;
-  }, [account, activeTopic, onlineOnly, profile?.branch, query, sort, targetCompanies, targetRoles, topics, verifiedOnly]);
+  }, [account, activeTopic, onlineOnly, profile?.branch, query, sort, targetCompanies, targetRoles, topics, verifiedOnly, directory.mentors]);
 
   const hasPlacementTargets = targetCompanies.length > 0 || targetRoles.length > 0;
   const exactPlacementMatches = hasPlacementTargets
-    ? matches.filter((match) => match.placementMatch === "exact").length
+    ? matches.filter((match) => match.placement?.tier === "exact").length
     : 0;
 
   const confirmBooking = () => {
@@ -126,7 +141,7 @@ export function MentorDiscovery() {
       {booked && (
         <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-success/20 bg-success-soft px-5 py-4 text-sm text-success">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-success text-white"><IconCheck /></span>
-          <span><strong>{booked.name}</strong> is booked. Your dashboard has been updated.</span>
+          <span>Session requested with <strong>{booked.name}</strong>. It&apos;s saved in this browser and shown on your dashboard.</span>
         </div>
       )}
 
@@ -165,11 +180,11 @@ export function MentorDiscovery() {
             <div className="mt-5 space-y-5 border-t border-line pt-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">Placement targets</p>
-                <p className="mt-1 text-[11px] leading-4 text-faint">Optional. Experience shown below is self-reported.</p>
+                <p className="mt-1 text-[11px] leading-4 text-faint">Optional. Mentor experience is self-reported and not verified by MentorMatch.</p>
               </div>
               <PlacementTargetField
                 id="discover-companies"
-                label="Companies"
+                label="Target companies"
                 placeholder="Add company"
                 options={TARGET_COMPANIES}
                 selected={targetCompanies}
@@ -178,13 +193,14 @@ export function MentorDiscovery() {
               />
               <PlacementTargetField
                 id="discover-roles"
-                label="Job roles"
-                placeholder="Add role"
+                label="Target positions"
+                placeholder="Add position"
                 options={TARGET_JOB_ROLES}
                 selected={targetRoles}
                 onChange={(roles) => updatePlacementTargets(targetCompanies, roles)}
                 compact
               />
+              {targetSync && <p role="status" className="text-[11px] text-faint">{targetSync}</p>}
               {profile?.placementSeason && (
                 <p className="rounded-lg bg-inset px-3 py-2 text-[11px] text-muted">
                   Placement season · <strong className="font-semibold text-fg">{profile.placementSeason}</strong>
@@ -215,14 +231,30 @@ export function MentorDiscovery() {
             <p className="rounded-full border border-line bg-surface px-3 py-1.5 text-[11px] text-faint">Scores update as you add context</p>
           </div>
 
-          {hasPlacementTargets && exactPlacementMatches === 0 && (
+          {directory.status !== "live" && (
+            <p role="status" className="mb-4 rounded-xl border border-line bg-inset/60 px-4 py-3 text-xs leading-5 text-muted">
+              {directory.status === "loading"
+                ? "Loading registered mentors…"
+                : directory.status === "unavailable"
+                  ? "Showing sample profiles only — profile storage isn't configured on this server yet."
+                  : "Couldn't load registered mentors right now, so only sample profiles are shown."}
+            </p>
+          )}
+
+          {matches.length === 0 && (
+            <p className="rounded-xl border border-line bg-surface px-4 py-6 text-sm text-muted">
+              No mentors match these filters yet. Try another focus topic, or turn off &ldquo;Verified skills only&rdquo; and &ldquo;Online right now&rdquo;.
+            </p>
+          )}
+
+          {hasPlacementTargets && matches.length > 0 && exactPlacementMatches === 0 && (
             <div className="mb-4 rounded-xl border border-warning/25 bg-warning-soft px-4 py-3 text-xs leading-5 text-warning">
-              No exact placement-experience match was found. Showing partial matches and skill-based alternatives, clearly labeled below.
+              No mentor matches all of your placement goals. Showing partial and related matches, labelled on each card.
             </div>
           )}
 
           <div className="space-y-3.5">
-            {matches.map(({ mentor, score, matchedSkills, matchedCompanies = [], matchedRoles = [], placementMatch, reasons }, index) => (
+            {matches.map(({ mentor, score, matchedSkills, placement, reasons }, index) => (
               <article key={mentor.id} className={`group relative overflow-hidden rounded-[20px] border bg-surface p-5 shadow-[0_8px_30px_rgb(16_25_21/0.035)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_44px_rgb(16_25_21/0.075)] sm:p-6 ${index === 0 ? "border-primary/30" : "border-line"}`}>
                 {index === 0 && <div aria-hidden="true" className="absolute inset-y-5 left-0 w-0.5 rounded-r-full bg-primary" />}
                 <div className="flex flex-col gap-5 sm:flex-row">
@@ -232,12 +264,13 @@ export function MentorDiscovery() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-sans text-lg font-semibold text-fg">{mentor.name}</h3>
+                          <MentorSourceBadges mentor={mentor} />
                           {mentor.online && <span className="inline-flex items-center gap-1 text-xs font-medium text-success"><IconDot className="h-1.5 w-1.5" /> Online</span>}
                         </div>
                         <p className="mt-1 text-sm text-muted">{mentor.year} · {mentor.branch}</p>
                       </div>
                       <div className="flex items-center gap-3 sm:gap-4">
-                        <div className="text-right"><div className="flex items-center gap-1.5"><Stars rating={mentor.rating} /><strong className="text-sm text-fg">{mentor.rating}</strong></div><p className="mt-1 text-[11px] text-faint">{mentor.reviews} sessions</p></div>
+                        {mentor.reviews > 0 ? <div className="text-right"><div className="flex items-center gap-1.5"><Stars rating={mentor.rating} /><strong className="text-sm text-fg">{mentor.rating}</strong></div><p className="mt-1 text-[11px] text-faint">{mentor.reviews} sessions</p></div> : <p className="text-right text-[11px] text-faint">No sessions yet</p>}
                         <div className="h-9 w-px bg-line" />
                         <div className="text-right"><strong className="block text-sm font-semibold text-primary-text">{score}% match</strong><span className="text-[10px] text-faint">Profile fit</span></div>
                       </div>
@@ -250,30 +283,20 @@ export function MentorDiscovery() {
                     {hasPlacementTargets && (
                       <div className="mt-4 rounded-xl border border-line bg-inset/55 p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-faint">Placement experience</p>
-                          <span className="text-[10px] text-faint">Self-reported</span>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-faint">Company and position experience</p>
+                          <span className="text-[10px] text-faint">Self-reported · not verified</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {mentor.companyExperience.map((company) => (
-                            <span key={`company-${company}`} className={`rounded-md border px-2 py-1 text-[11px] ${matchedCompanies.includes(company) ? "border-primary/25 bg-primary-soft text-primary-text" : "border-line text-muted"}`}>
-                              Company · {company}
-                            </span>
-                          ))}
-                          {mentor.roleExperience.map((jobRole) => (
-                            <span key={`role-${jobRole}`} className={`rounded-md border px-2 py-1 text-[11px] ${matchedRoles.includes(jobRole) ? "border-primary/25 bg-primary-soft text-primary-text" : "border-line text-muted"}`}>
-                              Role · {jobRole}
-                            </span>
-                          ))}
+                        {placement && <p className="mt-2 text-xs leading-5 text-fg">{placement.explanation}</p>}
+                        <div className="mt-2">
+                          <ExperienceList experience={mentor.experience} />
                         </div>
                       </div>
                     )}
 
                     <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
                       {index === 0 && <Badge tone="primary">Best match</Badge>}
-                      {placementMatch === "exact" && <Badge tone="success">Placement match</Badge>}
-                      {placementMatch === "partial" && <Badge tone="warning">Partial placement match</Badge>}
-                      {placementMatch === "alternative" && <Badge>Alternative</Badge>}
-                      {reasons.slice(0, 2).map((reason) => <p key={reason} className="flex items-center gap-2 text-xs text-muted"><span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/55" />{reason}</p>)}
+                      {placement && <PlacementBadge tier={placement.tier} />}
+                      {reasons.filter((reason) => reason !== placement?.explanation).slice(0, 2).map((reason) => <p key={reason} className="flex items-center gap-2 text-xs text-muted"><span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/55" />{reason}</p>)}
                     </div>
 
                     <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">

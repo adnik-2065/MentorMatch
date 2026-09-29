@@ -1,13 +1,36 @@
 /**
  * Onboarding data, types and mock logic.
  *
- * Everything here is in-memory for now. When the backend lands, the mock
- * helpers (`runTriage`, `analyseRepos`) get replaced by calls to
- * `/api/match` and `/api/skillproof`, and the topic/mentor lists come
- * from Postgres instead of these constants.
+ * Topics, triage and SkillProof are still in-memory mocks (`runTriage`,
+ * `analyseRepos`). Mentor profiles registered through onboarding are stored
+ * in Postgres (see `src/server/`) and ranked alongside the sample `MENTORS`
+ * by `matchMentors`.
  */
 
+import { hasPlacementGoals, placementFit, TIER_PRIORITY, type PlacementFit } from "./placement";
+
 export type Role = "junior" | "mentor";
+
+/**
+ * One line of a mentor's work history. Company and position are separate
+ * fields so a student can match on either — and an entry may carry only one
+ * of them (a company without a stated role, or a role outside a company).
+ * Nothing on the platform checks employment yet, so everything written by a
+ * mentor is stored as "self-reported"; "verified" is reserved for a real
+ * verification process and the server never sets it.
+ */
+export type ExperienceKind = "internship" | "full-time" | "part-time" | "research" | "project";
+export type ExperienceVerification = "self-reported" | "verified";
+
+export type MentorExperience = {
+  company: string | null;
+  position: string | null;
+  kind?: ExperienceKind;
+  startYear?: number | null;
+  /** null with a startYear means "present". */
+  endYear?: number | null;
+  verification: ExperienceVerification;
+};
 
 export type Mentor = {
   id: string;
@@ -17,11 +40,12 @@ export type Mentor = {
   rating: number;
   reviews: number;
   skills: string[];
-  companyExperience: string[];
-  roleExperience: string[];
+  experience: MentorExperience[];
   verified: "high" | "medium" | "claimed";
   online: boolean;
   slots: { day: string; time: string }[];
+  /** "sample" profiles ship with the app for demos; "registered" ones come from the database. */
+  source?: "sample" | "registered";
 };
 
 export type Triage = {
@@ -36,9 +60,8 @@ export type MentorMatch = {
   score: number;
   matchedSkills: string[];
   reasons: string[];
-  matchedCompanies?: string[];
-  matchedRoles?: string[];
-  placementMatch?: "exact" | "partial" | "alternative" | null;
+  /** Only present when the student set a target company or position. */
+  placement?: PlacementFit;
 };
 
 export type MatchPreferences = {
@@ -64,6 +87,7 @@ export type OnboardingState = {
   // junior
   learnTopics: string[];
   targetCompanies: string[];
+  /** Target positions. The key predates the "position" wording and is kept so stored profiles still load. */
   targetRoles: string[];
   placementSeason: string;
   stuckOn: string;
@@ -74,6 +98,7 @@ export type OnboardingState = {
   github: string;
   proofStatus: "idle" | "analysing" | "done" | "skipped";
   availability: Record<string, string[]>;
+  experience: MentorExperience[];
 };
 
 export const initialState: OnboardingState = {
@@ -96,6 +121,7 @@ export const initialState: OnboardingState = {
   github: "",
   proofStatus: "idle",
   availability: {},
+  experience: [],
 };
 
 export type TopicGroup = { name: string; topics: string[] };
@@ -529,6 +555,10 @@ export const TARGET_JOB_ROLES = [
   "Frontend Engineer",
   "DevOps Engineer",
   "Product Engineer",
+  "Product Manager",
+  "Machine Learning Engineer",
+  "Data Analyst",
+  "Full Stack Developer",
   "Embedded Systems Engineer",
   "Electrical Engineer",
   "Mechanical Design Engineer",
@@ -592,7 +622,23 @@ export const AVAILABILITY_PRESETS: { label: string; days: string[]; hours: strin
   },
 ];
 
-export const MENTORS: Mentor[] = [
+/*
+ * Sample profiles. Their company and role lists were entered separately, so
+ * they stay unpaired — pairing them would claim "SDE at Amazon" when the data
+ * only says "Amazon" and "SDE".
+ */
+const company = (name: string): MentorExperience => ({
+  company: name,
+  position: null,
+  verification: "self-reported",
+});
+const position = (name: string): MentorExperience => ({
+  company: null,
+  position: name,
+  verification: "self-reported",
+});
+
+const SAMPLE_MENTORS: Mentor[] = [
   {
     id: "aarav",
     name: "Aarav S.",
@@ -601,8 +647,7 @@ export const MENTORS: Mentor[] = [
     rating: 4.9,
     reviews: 32,
     skills: ["Docker", "Git", "Linux"],
-    companyExperience: ["Amazon"],
-    roleExperience: ["Software Development Engineer (SDE)", "DevOps Engineer"],
+    experience: [company("Amazon"), position("Software Development Engineer (SDE)"), position("DevOps Engineer")],
     verified: "high",
     online: true,
     slots: [
@@ -619,8 +664,7 @@ export const MENTORS: Mentor[] = [
     rating: 4.8,
     reviews: 27,
     skills: ["Docker", "Node.js", "DBMS"],
-    companyExperience: ["Microsoft"],
-    roleExperience: ["Software Development Engineer (SDE)", "Backend Engineer"],
+    experience: [company("Microsoft"), position("Software Development Engineer (SDE)"), position("Backend Engineer")],
     verified: "high",
     online: false,
     slots: [
@@ -636,8 +680,7 @@ export const MENTORS: Mentor[] = [
     rating: 4.6,
     reviews: 19,
     skills: ["C", "Operating Systems", "DSA"],
-    companyExperience: ["Amazon"],
-    roleExperience: ["AI Researcher"],
+    experience: [company("Amazon"), position("AI Researcher")],
     verified: "medium",
     online: true,
     slots: [
@@ -653,8 +696,7 @@ export const MENTORS: Mentor[] = [
     rating: 4.7,
     reviews: 24,
     skills: ["Java", "DSA", "SQL"],
-    companyExperience: ["Google"],
-    roleExperience: ["Data Scientist", "Software Development Engineer (SDE)"],
+    experience: [company("Google"), position("Data Scientist"), position("Software Development Engineer (SDE)")],
     verified: "high",
     online: true,
     slots: [
@@ -670,8 +712,7 @@ export const MENTORS: Mentor[] = [
     rating: 4.4,
     reviews: 11,
     skills: ["Git", "JavaScript", "React"],
-    companyExperience: ["Atlassian"],
-    roleExperience: ["Frontend Engineer"],
+    experience: [company("Atlassian"), position("Frontend Engineer")],
     verified: "medium",
     online: false,
     slots: [
@@ -687,8 +728,7 @@ export const MENTORS: Mentor[] = [
     rating: 4.8,
     reviews: 21,
     skills: ["Structural Analysis", "AutoCAD", "Surveying"],
-    companyExperience: ["Larsen & Toubro"],
-    roleExperience: ["Structural Engineer"],
+    experience: [company("Larsen & Toubro"), position("Structural Engineer")],
     verified: "high",
     online: true,
     slots: [
@@ -705,8 +745,7 @@ export const MENTORS: Mentor[] = [
     rating: 4.7,
     reviews: 18,
     skills: ["Thermodynamics", "SolidWorks", "Strength of Materials"],
-    companyExperience: ["Tata Motors"],
-    roleExperience: ["Mechanical Design Engineer"],
+    experience: [company("Tata Motors"), position("Mechanical Design Engineer")],
     verified: "medium",
     online: false,
     slots: [
@@ -722,8 +761,7 @@ export const MENTORS: Mentor[] = [
     rating: 4.9,
     reviews: 23,
     skills: ["Electrical Machines", "Power Systems", "MATLAB"],
-    companyExperience: ["Siemens"],
-    roleExperience: ["Electrical Engineer"],
+    experience: [company("Siemens"), position("Electrical Engineer")],
     verified: "high",
     online: true,
     slots: [
@@ -739,8 +777,7 @@ export const MENTORS: Mentor[] = [
     rating: 4.6,
     reviews: 15,
     skills: ["Embedded C", "Microcontrollers", "VLSI Design"],
-    companyExperience: ["Qualcomm"],
-    roleExperience: ["Embedded Systems Engineer"],
+    experience: [company("Qualcomm"), position("Embedded Systems Engineer")],
     verified: "medium",
     online: false,
     slots: [
@@ -749,6 +786,8 @@ export const MENTORS: Mentor[] = [
     ],
   },
 ];
+
+export const MENTORS: Mentor[] = SAMPLE_MENTORS.map((mentor) => ({ ...mentor, source: "sample" }));
 
 /** Keyword → concept gap. Stands in for the Gemini triage call. */
 const TRIAGE_RULES: {
@@ -837,13 +876,10 @@ const DEFAULT_TRIAGE = {
 };
 
 /** Explainable browser-side ranking shared by onboarding and Discover. */
-function matchMentorsBase({
-  query = "",
-  topics = [],
-  branch = "",
-  verifiedOnly = false,
-  onlineOnly = false,
-}: MatchPreferences): MentorMatch[] {
+function matchMentorsBase(
+  { query = "", topics = [], branch = "", verifiedOnly = false, onlineOnly = false }: MatchPreferences,
+  mentors: Mentor[],
+): MentorMatch[] {
   const normalizedQuery = query.trim().toLowerCase();
   const rule = normalizedQuery
     ? TRIAGE_RULES.find((item) => item.match.some((keyword) => normalizedQuery.includes(keyword)))
@@ -852,7 +888,7 @@ function matchMentorsBase({
   const requestedLower = requested.map((topic) => topic.toLowerCase());
   const queryWords = normalizedQuery.split(/\W+/).filter((word) => word.length > 2);
 
-  return MENTORS.filter((mentor) => !verifiedOnly || mentor.verified !== "claimed")
+  return mentors.filter((mentor) => !verifiedOnly || mentor.verified !== "claimed")
     .filter((mentor) => !onlineOnly || mentor.online)
     .map((mentor) => {
       const matchedSkills = mentor.skills.filter((skill) => {
@@ -894,81 +930,40 @@ function matchMentorsBase({
     .sort((a, b) => b.score - a.score || b.mentor.rating - a.mentor.rating);
 }
 
-function normalizePlacementValues(values: string[] = []) {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
-}
-
-function joinExperience(values: string[]) {
-  if (values.length <= 1) return values[0] ?? "";
-  if (values.length === 2) return `${values[0]} and ${values[1]}`;
-  return `${values.slice(0, -1).join(", ")}, and ${values.at(-1)}`;
-}
-
-/** Adds optional placement goals without changing the legacy ranking when none are set. */
-export function matchMentors(preferences: MatchPreferences): MentorMatch[] {
-  const targetCompanies = normalizePlacementValues(preferences.targetCompanies);
-  const targetRoles = normalizePlacementValues(preferences.targetRoles);
-  const baseMatches = matchMentorsBase(preferences);
-
-  if (targetCompanies.length === 0 && targetRoles.length === 0) return baseMatches;
-
-  const companyTargets = new Set(targetCompanies.map((value) => value.toLowerCase()));
-  const roleTargets = new Set(targetRoles.map((value) => value.toLowerCase()));
-  const wantsCompanies = companyTargets.size > 0;
-  const wantsRoles = roleTargets.size > 0;
+/**
+ * Topic ranking plus optional placement goals. With no company or position
+ * set this returns exactly the topic ranking; with goals set, mentors are
+ * grouped by placement tier (exact → partial → related → none) and the topic
+ * score orders mentors inside each tier. See `placement.ts` for the rules.
+ */
+export function matchMentors(preferences: MatchPreferences, mentors: Mentor[] = MENTORS): MentorMatch[] {
+  const baseMatches = matchMentorsBase(preferences, mentors);
+  if (!hasPlacementGoals(preferences)) return baseMatches;
 
   return baseMatches
     .map((match) => {
-      const matchedCompanies = (match.mentor.companyExperience ?? []).filter((company) =>
-        companyTargets.has(company.toLowerCase()),
-      );
-      const matchedRoles = (match.mentor.roleExperience ?? []).filter((role) =>
-        roleTargets.has(role.toLowerCase()),
-      );
-      const companyMatch = !wantsCompanies || matchedCompanies.length > 0;
-      const roleMatch = !wantsRoles || matchedRoles.length > 0;
-      const matchedDimensions = Number(wantsCompanies && matchedCompanies.length > 0)
-        + Number(wantsRoles && matchedRoles.length > 0);
-      const placementMatch: "exact" | "partial" | "alternative" = companyMatch && roleMatch
-        ? "exact"
-        : matchedDimensions > 0
-          ? "partial"
-          : "alternative";
-
-      let placementReason = "Alternative based on skills, branch, rating and availability";
-      const rolePhrase = matchedRoles.length === 1
-        ? `held a ${matchedRoles[0]} role`
-        : `held ${joinExperience(matchedRoles)} roles`;
-      if (matchedCompanies.length > 0 && matchedRoles.length > 0) {
-        placementReason = `Worked at ${joinExperience(matchedCompanies)} and ${rolePhrase} · Self-reported`;
-      } else if (matchedCompanies.length > 0) {
-        placementReason = `Worked at ${joinExperience(matchedCompanies)} · Self-reported`;
-      } else if (matchedRoles.length > 0) {
-        placementReason = `${rolePhrase[0].toUpperCase()}${rolePhrase.slice(1)} · Self-reported`;
-      }
-
+      const placement = placementFit(match.mentor, preferences);
       return {
         ...match,
-        score: Math.min(99, match.score + matchedCompanies.length * 12 + matchedRoles.length * 12),
-        matchedCompanies,
-        matchedRoles,
-        placementMatch,
-        reasons: [placementReason, ...match.reasons].slice(0, 3),
+        score: Math.min(99, match.score + placement.bonus),
+        placement,
+        reasons: [placement.explanation, ...match.reasons].slice(0, 3),
       };
     })
-    .sort((a, b) => {
-      const priority = (value: MentorMatch["placementMatch"]) =>
-        value === "exact" ? 2 : value === "partial" ? 1 : 0;
-      const placementDifference = priority(b.placementMatch) - priority(a.placementMatch);
-      return placementDifference || b.score - a.score || b.mentor.rating - a.mentor.rating;
-    });
+    .sort(
+      (a, b) =>
+        TIER_PRIORITY[b.placement.tier] - TIER_PRIORITY[a.placement.tier] ||
+        b.score - a.score ||
+        b.mentor.rating - a.mentor.rating,
+    );
 }
 
 function reasonFor(mentor: Mentor, topic: string) {
   const verified =
     mentor.verified === "claimed" ? "self-claimed" : `${mentor.verified}-confidence verified`;
+  const slot = mentor.slots[0];
   return `${verified} in ${topic}, ${mentor.reviews} rated sessions, ${
-    mentor.online ? "online right now" : `next free ${mentor.slots[0].day} ${mentor.slots[0].time}`
+    mentor.online ? "online right now" : slot ? `next free ${slot.day} ${slot.time}` : "no open slots listed"
   }.`;
 }
 
@@ -981,6 +976,7 @@ export function runTriage(
     targetCompanies?: string[];
     targetRoles?: string[];
   } = {},
+  mentors: Mentor[] = MENTORS,
 ): Triage {
   const lower = text.toLowerCase();
   const rule = TRIAGE_RULES.find((r) => r.match.some((k) => lower.includes(k)));
@@ -993,7 +989,7 @@ export function runTriage(
     branch: context.branch,
     targetCompanies: context.targetCompanies,
     targetRoles: context.targetRoles,
-  }).slice(0, 3);
+  }, mentors).slice(0, 3);
 
   return {
     topic,

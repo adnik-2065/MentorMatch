@@ -6,12 +6,25 @@
  * Two accounts exist: "me" — whatever you filled in during onboarding,
  * stored in localStorage — and "demo", the seeded profiles used for
  * screenshots and walkthroughs. The demo data only ever appears when you
- * explicitly sign into the demo account. Swapping localStorage for the
- * real session is the only change needed once auth lands.
+ * explicitly sign into the demo account.
+ *
+ * The browser copy drives the dashboards (bookings stay local). The profile,
+ * placement goals and mentor experience are also written to the server via
+ * `syncProfile` so other students can be matched against them — that call
+ * reports honestly when the server has no database configured.
  */
 
 import { useEffect, useState } from "react";
-import { analyseRepos, initialState, type Mentor, type OnboardingState } from "./onboarding";
+import {
+  analyseRepos,
+  initialState,
+  matchMentors,
+  type Mentor,
+  type MentorExperience,
+  type OnboardingState,
+} from "./onboarding";
+import { hasPlacementGoals } from "./placement";
+import { toProfileInput } from "./profileValidation";
 import {
   MENTOR_DOUBTS,
   MENTOR_ME,
@@ -35,24 +48,53 @@ const ACCOUNT_KEY = "mentormatch.account.v1";
 
 /* --------------------------------- storage --------------------------------- */
 
+const strings = (value: unknown) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
+function experienceFrom(value: unknown): MentorExperience[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const { company, position, kind, startYear, endYear } = item as Record<string, unknown>;
+    const entry: MentorExperience = {
+      company: typeof company === "string" && company.trim() ? company : null,
+      position: typeof position === "string" && position.trim() ? position : null,
+      ...(typeof kind === "string" ? { kind: kind as MentorExperience["kind"] } : {}),
+      startYear: typeof startYear === "number" ? startYear : null,
+      endYear: typeof endYear === "number" ? endYear : null,
+      // Anything read back from the browser is the user's own claim.
+      verification: "self-reported",
+    };
+    return entry.company || entry.position ? [entry] : [];
+  });
+}
+
+/**
+ * Fills in anything a stored profile predates. Profiles saved before
+ * placement goals or mentor experience existed load with those empty.
+ */
+export function normalizeStoredProfile(stored: Partial<OnboardingState>): OnboardingState {
+  return {
+    ...initialState,
+    ...stored,
+    learnTopics: strings(stored.learnTopics),
+    targetCompanies: strings(stored.targetCompanies),
+    targetRoles: strings(stored.targetRoles),
+    placementSeason: typeof stored.placementSeason === "string" ? stored.placementSeason : "",
+    teachTopics: strings(stored.teachTopics),
+    availability: stored.availability && typeof stored.availability === "object"
+      ? stored.availability
+      : {},
+    experience: experienceFrom(stored.experience),
+  };
+}
+
 export function loadProfile(): OnboardingState | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(PROFILE_KEY);
     if (!raw) return null;
-    const stored = JSON.parse(raw) as Partial<OnboardingState>;
-    return {
-      ...initialState,
-      ...stored,
-      learnTopics: Array.isArray(stored.learnTopics) ? stored.learnTopics : [],
-      targetCompanies: Array.isArray(stored.targetCompanies) ? stored.targetCompanies : [],
-      targetRoles: Array.isArray(stored.targetRoles) ? stored.targetRoles : [],
-      placementSeason: typeof stored.placementSeason === "string" ? stored.placementSeason : "",
-      teachTopics: Array.isArray(stored.teachTopics) ? stored.teachTopics : [],
-      availability: stored.availability && typeof stored.availability === "object"
-        ? stored.availability
-        : {},
-    };
+    return normalizeStoredProfile(JSON.parse(raw) as Partial<OnboardingState>);
   } catch {
     return null;
   }
@@ -66,6 +108,47 @@ export function saveProfile(state: OnboardingState) {
     window.localStorage.setItem(ACCOUNT_KEY, "me");
   } catch {
     // Private mode or a full quota — the dashboard falls back to signed out.
+  }
+}
+
+/* ---------------------------------- server ---------------------------------- */
+
+export type SyncResult =
+  | { status: "saved" }
+  /** The server has no database configured — nothing was stored remotely. */
+  | { status: "unavailable"; message: string }
+  | { status: "invalid"; errors: Record<string, string> }
+  | { status: "error"; message: string };
+
+/** Stores the profile server-side so other students can be matched with it. Never reports success it didn't get. */
+export async function syncProfile(state: OnboardingState): Promise<SyncResult> {
+  try {
+    const response = await fetch("/api/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(toProfileInput(state)),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) return { status: "saved" };
+    if (response.status === 503) {
+      return { status: "unavailable", message: body.message ?? "Profile storage isn't configured." };
+    }
+    if (response.status === 422) return { status: "invalid", errors: body.errors ?? {} };
+    return { status: "error", message: body.message ?? `Save failed (${response.status}).` };
+  } catch {
+    return { status: "error", message: "Network error — check your connection and try again." };
+  }
+}
+
+/** The server copy of your own profile, if this browser has one. */
+export async function fetchOwnProfile(): Promise<Partial<OnboardingState> | null> {
+  try {
+    const response = await fetch("/api/profile", { cache: "no-store" });
+    if (!response.ok) return null;
+    const { profile } = await response.json();
+    return profile ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -216,7 +299,17 @@ export function studentView(account: AccountId, profile: OnboardingState | null)
     // A brand new account has nothing to rate and no recaps yet — say so rather than invent.
     toRate: [],
     recaps: [],
-    recommended: recommendedFor(profile.learnTopics, profile.branch),
+    // Placement goals re-rank recommendations; without them the topic ranking is unchanged.
+    recommended: hasPlacementGoals(profile)
+      ? matchMentors({
+          topics: profile.learnTopics,
+          branch: profile.branch,
+          targetCompanies: profile.targetCompanies,
+          targetRoles: profile.targetRoles,
+        })
+          .slice(0, 3)
+          .map((match) => match.mentor)
+      : recommendedFor(profile.learnTopics, profile.branch),
     stats: { sessionsDone: 0, hoursLearnt: 0, streak: 0 },
   };
 }

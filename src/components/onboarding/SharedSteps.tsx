@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Button, Card, ChoiceGroup, Input, StepHeading } from "@/components/ui";
+import { StepActions, type StepNav } from "./StepActions";
 import { IconArrowRight, IconGraduation, IconSparkle, IconTeach } from "@/components/icons";
 import { BRANCHES, YEARS, type OnboardingState, type Role } from "@/lib/onboarding";
 
@@ -125,19 +126,20 @@ export function VerifyStep({
 export function ProfileStep({
   state,
   patch,
-  next,
+  nav,
 }: {
   state: OnboardingState;
   patch: Patch;
-  next: () => void;
+  nav: StepNav;
 }) {
-  const ready = state.name.trim() && state.college.trim() && state.year && state.branch;
+  const { errors } = nav;
 
   return (
     <div className="space-y-7">
       <StepHeading
+        eyebrow="About you"
         title="A little context makes every match better"
-        subtitle="We use your year, branch and college to prioritize seniors who understand your coursework. Nothing here is publicly shared by default."
+        subtitle="Your year and branch help us prioritize seniors who understand your coursework. Nothing here is publicly shared by default."
       />
 
       <div className="grid gap-5 sm:grid-cols-2">
@@ -145,16 +147,20 @@ export function ProfileStep({
           id="name"
           label="Name"
           autoComplete="name"
+          required
           value={state.name}
           placeholder="Your name"
+          error={errors.name}
           onChange={(e) => patch({ name: e.target.value })}
         />
         <Input
           id="college"
           label="College"
           autoComplete="organization"
+          required
           value={state.college}
           placeholder="Your institute"
+          error={errors.college}
           onChange={(e) => patch({ college: e.target.value })}
         />
         <div className="sm:col-span-2">
@@ -162,15 +168,17 @@ export function ProfileStep({
             id="college-email"
             type="email"
             label="College email (optional)"
-            hint="Saved to your local profile only. Verification is not required in this build."
+            hint="Kept in this browser only. Verification is not required in this build."
+            autoComplete="email"
             value={state.email}
             placeholder="you@college.ac.in"
+            error={errors.email}
             onChange={(e) => patch({ email: e.target.value })}
           />
         </div>
       </div>
 
-      <ChoiceGroup label="Year">
+      <ChoiceGroup id="year" label="Year" error={errors.year}>
         {YEARS.map((y) => (
           <OptionButton
             key={y}
@@ -181,7 +189,7 @@ export function ProfileStep({
         ))}
       </ChoiceGroup>
 
-      <ChoiceGroup label="Branch">
+      <ChoiceGroup id="branch" label="Branch" hint="Subjects and mentors follow your branch first." error={errors.branch}>
         {BRANCHES.map((b) => (
           <OptionButton
             key={b}
@@ -192,27 +200,20 @@ export function ProfileStep({
         ))}
       </ChoiceGroup>
 
-      <Button disabled={!ready} onClick={next}>
-        Continue
-        <IconArrowRight />
-      </Button>
+      <StepActions onBack={nav.back} onContinue={() => nav.next()} errorCount={Object.keys(errors).length} />
     </div>
   );
 }
 
-export function RoleStep({ patch, next }: { patch: Patch; next: () => void }) {
-  const pick = (role: Role) => {
-    patch({ role });
-    next();
-  };
-
+export function RoleStep({ state, nav }: { state: OnboardingState; nav: StepNav }) {
+  const pick = (role: Role) => nav.next({ role });
   const cards = [
     {
       role: "junior" as const,
       icon: <IconGraduation className="h-6 w-6" />,
       title: "I need help",
       body: "Find a senior who has already solved what you're stuck on.",
-      meta: "~2 minutes · ends with a booked session",
+      meta: "~2 minutes · ends with suggested mentors",
     },
     {
       role: "mentor" as const,
@@ -235,8 +236,9 @@ export function RoleStep({ patch, next }: { patch: Patch; next: () => void }) {
           <button
             key={c.role}
             type="button"
+            aria-pressed={state.role === c.role}
             onClick={() => pick(c.role)}
-            className="group cursor-pointer rounded-2xl border border-line bg-surface p-6 text-left shadow-sm transition-all duration-200 outline-none hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_45px_rgb(23_26_43/0.09)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+            className={`group cursor-pointer rounded-2xl border bg-surface p-6 ${state.role === c.role ? "border-primary ring-1 ring-primary/40" : "border-line"} text-left shadow-sm transition-all duration-200 outline-none hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_45px_rgb(23_26_43/0.09)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg`}
           >
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary-soft text-primary-text transition-colors group-hover:bg-primary group-hover:text-on-primary">
               {c.icon}

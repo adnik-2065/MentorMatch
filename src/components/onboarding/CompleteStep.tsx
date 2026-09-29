@@ -1,19 +1,74 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, StepHeading } from "@/components/ui";
 import { IconArrowRight, IconCalendar, IconCheck, IconShield } from "@/components/icons";
 import { analyseRepos, type OnboardingState } from "@/lib/onboarding";
-import { saveProfile } from "@/lib/account";
+import { saveProfile, syncProfile, type SyncResult } from "@/lib/account";
+import { hasPlacementGoals } from "@/lib/placement";
+
+type SyncStatus = { status: "saving" } | SyncResult;
+
+/** Tells the user exactly where their profile ended up — never claims a save that didn't happen. */
+function SyncCard({ sync, isMentor, onRetry }: { sync: SyncStatus; isMentor: boolean; onRetry: () => void }) {
+  const copy = {
+    saving: { tone: "bg-inset", title: "Saving your profile…", body: "" },
+    saved: {
+      tone: "border-success/30 bg-success-soft",
+      title: "Profile saved to MentorMatch",
+      body: isMentor
+        ? "Students can now find you by subject and by the experience you listed."
+        : "Your subjects and placement goals are stored with your account on this browser.",
+    },
+    unavailable: {
+      tone: "bg-inset",
+      title: "Saved on this device only",
+      body: "Profile storage isn't configured on this server, so nothing was sent to a database.",
+    },
+    invalid: { tone: "border-danger/30 bg-danger-soft", title: "The server rejected part of your profile", body: "" },
+    error: { tone: "border-danger/30 bg-danger-soft", title: "Couldn't save to the server", body: "" },
+  }[sync.status];
+
+  return (
+    <div role="status" className={`rounded-2xl border border-line p-5 ${copy.tone}`}>
+      <p className="text-sm font-medium text-fg">{copy.title}</p>
+      {copy.body && <p className="mt-1 text-sm text-muted">{copy.body}</p>}
+      {sync.status === "error" && <p className="mt-1 text-sm text-muted">{sync.message} Your profile is still saved in this browser.</p>}
+      {sync.status === "invalid" && (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
+          {Object.values(sync.errors).map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
+      )}
+      {(sync.status === "error" || sync.status === "invalid") && (
+        <div className="mt-3">
+          <Button variant="outline" onClick={onRetry}>
+            Try again
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function CompleteStep({ state, onReset }: { state: OnboardingState; onReset: () => void }) {
   const isMentor = state.role === "mentor";
 
-  // Reaching this step is what creates the account — the dashboards read it from here.
+  const [sync, setSync] = useState<SyncStatus>({ status: "saving" });
+
+  const save = useCallback(() => {
+    setSync({ status: "saving" });
+    syncProfile(state).then(setSync);
+  }, [state]);
+
+  // Reaching this step is what creates the account — the dashboards read the browser copy,
+  // and the server copy is what other users are matched against.
   useEffect(() => {
     saveProfile(state);
-  }, [state]);
+    save();
+  }, [state, save]);
 
   const firstName = state.name.trim().split(" ")[0] || "there";
   const slotCount = Object.values(state.availability).flat().length;
@@ -35,11 +90,40 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
         />
       </div>
 
+      <SyncCard sync={sync} isMentor={isMentor} onRetry={save} />
+
+      {!isMentor && hasPlacementGoals(state) && (
+        <Card className="bg-inset">
+          <h3 className="text-xs font-medium tracking-wide text-faint uppercase">Placement goals</h3>
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-4">
+            {state.targetCompanies.length > 0 && (
+              <>
+                <dt className="text-faint">Companies</dt>
+                <dd className="text-fg">{state.targetCompanies.join(", ")}</dd>
+              </>
+            )}
+            {state.targetRoles.length > 0 && (
+              <>
+                <dt className="text-faint">Positions</dt>
+                <dd className="text-fg">{state.targetRoles.join(", ")}</dd>
+              </>
+            )}
+            {state.placementSeason && (
+              <>
+                <dt className="text-faint">Season</dt>
+                <dd className="text-fg">{state.placementSeason}</dd>
+              </>
+            )}
+          </dl>
+          <p className="mt-3 text-xs text-faint">Edit these any time from Discover.</p>
+        </Card>
+      )}
+
       {!isMentor && state.booking && (
         <Card className="border-success/30 bg-success-soft">
           <Badge tone="success">
             <IconCalendar className="h-3 w-3" />
-            Session booked
+            Session requested
           </Badge>
           <p className="mt-3 font-sans text-xl font-semibold text-fg">
             {state.booking.day}, {state.booking.time} · {state.booking.mentor.name}

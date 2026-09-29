@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, Input, StepHeading } from "@/components/ui";
 import { TopicPicker } from "./TopicPicker";
+import { ExperienceEditor } from "./ExperienceEditor";
 import {
   IconArrowRight,
   IconCalendar,
@@ -57,6 +58,8 @@ export function TeachTopicsStep({
           rank below verified mentors in search. That&apos;s the only penalty — nothing is blocked.
         </p>
       </Card>
+
+      <ExperienceEditor experience={state.experience} onChange={(experience) => patch({ experience })} />
 
       <Button disabled={state.teachTopics.length === 0} onClick={next}>
         Continue

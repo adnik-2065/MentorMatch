@@ -1,96 +1,181 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Card, Input, Stars, StepHeading, Textarea } from "@/components/ui";
+import Link from "next/link";
+import { Badge, Card, Chip, Stars, StepHeading, Textarea } from "@/components/ui";
 import { PlacementTargetField } from "@/components/PlacementTargetField";
+import { ExperienceDisclosure, MentorSourceBadges, PlacementBadge } from "@/components/MentorExperience";
 import { TopicPicker } from "./TopicPicker";
-import { IconArrowRight, IconDot, IconShield, IconSparkle } from "@/components/icons";
+import { StepActions, type StepNav } from "./StepActions";
+import { IconDot, IconShield, IconSparkle } from "@/components/icons";
 import {
+  matchMentors,
   runTriage,
   TARGET_COMPANIES,
   TARGET_JOB_ROLES,
-  type Mentor,
+  type MentorMatch,
   type OnboardingState,
 } from "@/lib/onboarding";
+import { hasPlacementGoals, prepTopicsFor } from "@/lib/placement";
+import { useMentorDirectory } from "@/lib/mentorDirectory";
 
 type Patch = (patch: Partial<OnboardingState>) => void;
+type StepProps = { state: OnboardingState; patch: Patch; nav: StepNav };
 
-export function LearnTopicsStep({
-  state,
-  patch,
-  next,
-}: {
-  state: OnboardingState;
-  patch: Patch;
-  next: () => void;
-}) {
-  const toggle = (topic: string) =>
-    patch({
-      learnTopics: state.learnTopics.includes(topic)
-        ? state.learnTopics.filter((t) => t !== topic)
-        : [...state.learnTopics, topic],
-    });
+const toggleIn = (list: string[], value: string) =>
+  list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
+export function LearnTopicsStep({ state, patch, nav }: StepProps) {
+  const { errors } = nav;
   return (
     <div className="space-y-7">
       <StepHeading
+        eyebrow="Subjects"
         title="What do you want to learn?"
         subtitle="Pick a few. This drives your feed and the mentors we surface first."
       />
 
-      <TopicPicker
-        label="Subjects"
-        hint="Your branch first. Switch to all branches, or type a subject we've missed."
-        branch={state.branch}
-        selected={state.learnTopics}
-        onToggle={toggle}
+      <div
+        id="learn-topics"
+        tabIndex={-1}
+        aria-invalid={errors.learnTopics ? true : undefined}
+        aria-describedby={errors.learnTopics ? "learn-topics-error" : undefined}
+        className="outline-none"
+      >
+        <TopicPicker
+          label="Subjects"
+          hint="Your branch first. Switch to all branches, or type a subject we've missed."
+          branch={state.branch}
+          selected={state.learnTopics}
+          onToggle={(topic) => patch({ learnTopics: toggleIn(state.learnTopics, topic) })}
+        />
+        {errors.learnTopics && (
+          <p id="learn-topics-error" className="mt-2 text-xs font-medium text-danger">
+            {errors.learnTopics}
+          </p>
+        )}
+      </div>
+
+      <StepActions
+        onBack={nav.back}
+        onContinue={() => nav.next()}
+        continueLabel={state.learnTopics.length > 0 ? `Continue with ${state.learnTopics.length}` : "Continue"}
+        errorCount={Object.keys(errors).length}
+      />
+    </div>
+  );
+}
+
+/** Current year onwards, plus whatever the student already saved (e.g. "Winter 2026"). */
+function seasonOptions(current: string) {
+  const year = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => String(year + i));
+  return current && !years.includes(current) ? [current, ...years] : years;
+}
+
+export function PlacementGoalsStep({ state, patch, nav }: StepProps) {
+  const { errors } = nav;
+  const prepTopics = prepTopicsFor(state.targetRoles);
+
+  return (
+    <div className="space-y-7">
+      <StepHeading
+        eyebrow="Optional"
+        title="Preparing for placements?"
+        subtitle="Add the companies and positions you're aiming for. Everything here is optional and you can change it later from Discover."
       />
 
-      <Card className="space-y-5 bg-inset/45">
-        <div>
-          <h3 className="text-sm font-semibold text-fg">Optional placement goals</h3>
-          <p className="mt-1 text-xs leading-5 text-faint">
-            Add companies or roles to prioritize mentors with matching self-reported experience.
-          </p>
+      <Card className="border-primary/25 bg-primary-soft/50">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 text-primary-text">
+            <IconSparkle />
+          </span>
+          <div className="space-y-1.5 text-sm leading-relaxed text-muted">
+            <p>
+              Mentors whose <span className="font-medium text-fg">self-reported</span> experience matches more of your
+              goals are suggested first. Subject fit, rating and availability still count.
+            </p>
+            <p className="text-xs text-faint">
+              MentorMatch doesn&apos;t verify employment. Mentors don&apos;t represent their employers and can&apos;t
+              promise referrals, interviews or offers.
+            </p>
+          </div>
         </div>
-        <PlacementTargetField
-          id="target-companies"
-          label="Target companies"
-          placeholder="Search or add a company"
-          options={TARGET_COMPANIES}
-          selected={state.targetCompanies}
-          onChange={(targetCompanies) => patch({ targetCompanies })}
-        />
-        <PlacementTargetField
-          id="target-roles"
-          label="Target job roles"
-          placeholder="Search or add a role"
-          options={TARGET_JOB_ROLES}
-          selected={state.targetRoles}
-          onChange={(targetRoles) => patch({ targetRoles })}
-        />
-        <Input
-          id="placement-season"
-          label="Placement season or year"
-          hint="Optional — for example, 2027 or Winter 2026."
-          value={state.placementSeason}
-          placeholder="2027"
-          onChange={(event) => patch({ placementSeason: event.target.value })}
-        />
       </Card>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <Button disabled={state.learnTopics.length === 0} onClick={next}>
-          Continue
-          {state.learnTopics.length > 0 && ` with ${state.learnTopics.length}`}
-          <IconArrowRight />
-        </Button>
-        <p aria-live="polite" className="text-xs text-faint">
-          {state.learnTopics.length === 0
-            ? "Select at least one topic"
-            : `${state.learnTopics.length} selected`}
+      <PlacementTargetField
+        id="target-companies"
+        label="Target companies"
+        hint="Search the list or add your own."
+        placeholder="Search or add a company"
+        options={TARGET_COMPANIES}
+        selected={state.targetCompanies}
+        error={errors.targetCompanies}
+        onChange={(targetCompanies) => patch({ targetCompanies })}
+      />
+      <PlacementTargetField
+        id="target-roles"
+        label="Target positions"
+        hint="For example Data Scientist, AI Researcher, SDE or Product Manager — or add your own."
+        placeholder="Search or add a position"
+        options={TARGET_JOB_ROLES}
+        selected={state.targetRoles}
+        error={errors.targetRoles}
+        onChange={(targetRoles) => patch({ targetRoles })}
+      />
+
+      <div className="space-y-1.5">
+        <label htmlFor="placement-season" className="block text-sm font-medium text-fg">
+          Placement season (optional)
+        </label>
+        <select
+          id="placement-season"
+          value={state.placementSeason}
+          aria-invalid={errors.placementSeason ? true : undefined}
+          aria-describedby={errors.placementSeason ? "placement-season-error" : "placement-season-hint"}
+          onChange={(e) => patch({ placementSeason: e.target.value })}
+          className={`min-h-12 w-full rounded-xl border bg-surface px-4 text-sm text-fg shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-60 ${errors.placementSeason ? "border-danger" : "border-line"}`}
+        >
+          <option value="">Not sure yet</option>
+          {seasonOptions(state.placementSeason).map((season) => (
+            <option key={season} value={season}>
+              {season}
+            </option>
+          ))}
+        </select>
+        <p id="placement-season-hint" className="text-xs text-faint">
+          Saved with your profile so mentors know your timeline. It doesn&apos;t change the ranking.
         </p>
+        {errors.placementSeason && (
+          <p id="placement-season-error" className="text-xs font-medium text-danger">
+            {errors.placementSeason}
+          </p>
+        )}
       </div>
+
+      {prepTopics.length > 0 && (
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-medium text-fg">Prep topics for these positions</legend>
+          <p className="text-xs text-faint">Adding a topic also adds it to your subjects, so it counts toward matching.</p>
+          <div className="flex flex-wrap gap-2">
+            {prepTopics.map((topic) => (
+              <Chip
+                key={topic}
+                label={topic}
+                selected={state.learnTopics.includes(topic)}
+                onClick={() => patch({ learnTopics: toggleIn(state.learnTopics, topic) })}
+              />
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      <StepActions
+        onBack={nav.back}
+        onSkip={nav.skip}
+        onContinue={() => nav.next()}
+        errorCount={Object.keys(errors).length}
+      />
     </div>
   );
 }
@@ -109,22 +194,18 @@ const STUCK_EXAMPLES: Record<string, string> = {
   Biotech: "Example: my PCR gives no band and I can't tell if it's the primers or the annealing temperature",
 };
 
-export function StuckStep({
-  state,
-  patch,
-  next,
-}: {
-  state: OnboardingState;
-  patch: Patch;
-  next: () => void;
-}) {
+export function StuckStep({ state, patch, nav }: StepProps) {
   const [running, setRunning] = useState(false);
+  const error = nav.errors.stuckOn;
 
   const run = () => {
+    const text = state.stuckOn.trim();
+    if (text.length < 10) return nav.next();
     setRunning(true);
-    // Stands in for POST /api/match — Gemini reads the text and returns the concept gap.
+    // Rules-based keyword triage; the short pause only lets the status read naturally.
     setTimeout(() => {
-      patch({
+      setRunning(false);
+      nav.next({
         triage: runTriage(state.stuckOn, {
           branch: state.branch,
           topics: state.learnTopics,
@@ -132,83 +213,57 @@ export function StuckStep({
           targetRoles: state.targetRoles,
         }),
       });
-      setRunning(false);
-      next();
-    }, 1400);
+    }, 600);
   };
 
   return (
     <div className="space-y-7">
       <StepHeading
+        eyebrow="Optional"
         title="What are you stuck on right now?"
-        subtitle="Paste an error or just describe it. This is the part that actually finds you a mentor."
+        subtitle="Paste an error or just describe it. We'll use it to point you at the right concept and seniors."
       />
 
       <Textarea
         id="stuck"
-        label="Your problem"
+        label="Your problem (optional)"
         hint={STUCK_EXAMPLES[state.branch] ?? STUCK_EXAMPLES.CSE}
         rows={5}
         value={state.stuckOn}
         placeholder="Describe it the way you'd say it out loud…"
-        onChange={(e) => patch({ stuckOn: e.target.value })}
+        error={error}
+        onChange={(e) => patch({ stuckOn: e.target.value, triage: null })}
       />
 
-      <Card className="border-primary/25 bg-primary-soft/50">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 text-primary-text">
-            <IconSparkle />
-          </span>
-          <p className="text-sm leading-relaxed text-muted">
-            We read this to find the <span className="font-medium text-fg">underlying concept
-            gap</span> — not just keywords. A &ldquo;React bug&rdquo; that&apos;s really a closure
-            misunderstanding gets routed accordingly.
-          </p>
-        </div>
-      </Card>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button disabled={state.stuckOn.trim().length < 10 || running} onClick={run}>
-          {running ? (
-            <>
-              <span
-                aria-hidden="true"
-                className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary"
-              />
-              Reading your problem…
-            </>
-          ) : (
-            <>
-              Find me a mentor
-              <IconArrowRight />
-            </>
-          )}
-        </Button>
-        <Button variant="ghost" onClick={next}>
-          Skip for now
-        </Button>
-        <span aria-live="polite" className="sr-only">
-          {running ? "Analysing your problem" : ""}
-        </span>
-      </div>
+      <StepActions
+        onBack={nav.back}
+        onSkip={nav.skip}
+        onContinue={run}
+        busy={running}
+        continueLabel={running ? "Reading your problem…" : "Find mentors"}
+        errorCount={error ? 1 : 0}
+      />
+      <span aria-live="polite" className="sr-only">
+        {running ? "Analysing your problem" : ""}
+      </span>
     </div>
   );
 }
 
 function MentorCard({
-  mentor,
-  reason,
+  match,
   rank,
   booking,
   onPick,
 }: {
-  mentor: Mentor;
-  reason: string;
+  match: MentorMatch;
   rank: number;
   booking: OnboardingState["booking"];
   onPick: (day: string, time: string) => void;
 }) {
+  const { mentor, placement } = match;
   const isBooked = booking?.mentor.id === mentor.id;
+  const reason = placement?.explanation ?? match.reasons[0];
 
   return (
     <li
@@ -220,11 +275,12 @@ function MentorCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs tabular-nums text-faint">#{rank}</span>
-            <span className="font-sans font-semibold text-fg">{mentor.name}</span>
+            <h3 className="font-sans font-semibold text-fg">{mentor.name}</h3>
+            {placement && <PlacementBadge tier={placement.tier} />}
             {mentor.verified !== "claimed" && (
               <Badge tone="success">
                 <IconShield className="h-3 w-3" />
-                Verified
+                Skills verified
               </Badge>
             )}
             {mentor.online && (
@@ -233,28 +289,38 @@ function MentorCard({
                 Online
               </Badge>
             )}
+            <MentorSourceBadges mentor={mentor} />
           </div>
           <p className="mt-1 text-xs text-faint">
             {mentor.year} · {mentor.branch}
           </p>
-          <p className="mt-2.5 max-w-[52ch] text-sm leading-relaxed text-muted">{reason}</p>
+          {reason && <p className="mt-2.5 max-w-[60ch] text-sm leading-relaxed text-muted">{reason}</p>}
+          {match.matchedSkills.length > 0 && (
+            <p className="mt-1.5 text-xs text-faint">Teaches: {match.matchedSkills.join(", ")}</p>
+          )}
         </div>
 
-        <div className="text-right">
-          <div className="flex items-center justify-end gap-1.5">
-            <Stars rating={mentor.rating} />
-            <span className="text-sm font-medium tabular-nums text-fg">{mentor.rating}</span>
+        {mentor.reviews > 0 && (
+          <div className="text-right">
+            <div className="flex items-center justify-end gap-1.5">
+              <Stars rating={mentor.rating} />
+              <span className="text-sm font-medium tabular-nums text-fg">{mentor.rating}</span>
+            </div>
+            <p className="mt-0.5 text-xs text-faint">{mentor.reviews} sessions</p>
           </div>
-          <p className="mt-0.5 text-xs text-faint">{mentor.reviews} sessions</p>
-        </div>
+        )}
       </div>
 
-      <div className="mt-4 border-t border-line pt-4">
-        <p className="text-xs font-medium text-faint">Open slots</p>
+      <div className="mt-3">
+        <ExperienceDisclosure experience={mentor.experience} />
+      </div>
+
+      <fieldset className="mt-3 border-t border-line pt-4">
+        <legend className="sr-only">Request a session with {mentor.name}</legend>
+        <p aria-hidden="true" className="text-xs font-medium text-faint">Request a session</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {mentor.slots.map((slot) => {
-            const selected =
-              isBooked && booking?.day === slot.day && booking?.time === slot.time;
+            const selected = isBooked && booking?.day === slot.day && booking?.time === slot.time;
             return (
               <button
                 key={`${slot.day}-${slot.time}`}
@@ -272,79 +338,103 @@ function MentorCard({
             );
           })}
         </div>
-      </div>
+      </fieldset>
     </li>
   );
 }
 
-export function MatchStep({
-  state,
-  patch,
-  next,
-}: {
-  state: OnboardingState;
-  patch: Patch;
-  next: () => void;
-}) {
-  const triage = state.triage;
+const DIRECTORY_NOTE = {
+  loading: "Loading registered mentors…",
+  live: null,
+  unavailable: "Showing sample profiles only — profile storage isn't configured on this server yet.",
+  error: "Couldn't load registered mentors right now, so only sample profiles are shown.",
+} as const;
 
-  if (!triage) {
-    return (
-      <div className="space-y-7">
-        <StepHeading
-          title="No problem described yet"
-          subtitle="Go back a step and tell us what you're stuck on — or browse mentors from your dashboard."
-        />
-        <Button onClick={next}>Finish setup</Button>
-      </div>
-    );
-  }
+export function MatchStep({ state, patch, nav }: StepProps) {
+  const directory = useMentorDirectory();
+  const triage = state.triage;
+  const withGoals = hasPlacementGoals(state);
+
+  const matches = matchMentors(
+    {
+      query: state.stuckOn,
+      topics: triage ? [triage.topic, ...state.learnTopics] : state.learnTopics,
+      branch: state.branch,
+      targetCompanies: state.targetCompanies,
+      targetRoles: state.targetRoles,
+    },
+    directory.mentors,
+  )
+    .filter((m) => m.mentor.slots.length > 0)
+    .slice(0, 3);
+  const exactCount = matches.filter((m) => m.placement?.tier === "exact").length;
+  const note = DIRECTORY_NOTE[directory.status];
 
   return (
     <div className="space-y-7">
       <StepHeading
-        title="Here's who can help"
-        subtitle="Top rated for your topic, free soonest. Book one and you're done."
+        eyebrow="Suggested mentors"
+        title={matches.length > 0 ? "Here's who can help" : "No mentors to suggest yet"}
+        subtitle={
+          matches.length > 0
+            ? "Ranked by your goals, subjects, branch, rating and availability. Pick a slot to request a session, or come back later."
+            : "Nobody currently teaches your subjects with open slots. You can finish setup and browse all mentors in Discover."
+        }
       />
 
-      <Card className="border-primary/25 bg-primary-soft/50">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="primary">
-            <IconSparkle className="h-3 w-3" />
-            Concept gap
-          </Badge>
-          <span className="font-sans font-semibold text-fg">{triage.concept}</span>
-          <Badge>{triage.topic}</Badge>
-        </div>
-        <p className="mt-2.5 max-w-[60ch] text-sm leading-relaxed text-muted">
-          {triage.explanation}
+      {note && (
+        <p role="status" className="rounded-xl border border-line bg-inset/60 px-4 py-3 text-sm text-muted">
+          {note}
         </p>
-      </Card>
+      )}
 
-      <ul className="space-y-3">
-        {triage.mentors.map(({ mentor, reason }, i) => (
-          <MentorCard
-            key={mentor.id}
-            mentor={mentor}
-            reason={reason}
-            rank={i + 1}
-            booking={state.booking}
-            onPick={(day, time) => patch({ booking: { mentor, day, time } })}
-          />
-        ))}
-      </ul>
+      {triage && (
+        <Card className="border-primary/25 bg-primary-soft/50">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="primary">
+              <IconSparkle className="h-3 w-3" />
+              Concept gap
+            </Badge>
+            <span className="font-sans font-semibold text-fg">{triage.concept}</span>
+            <Badge>{triage.topic}</Badge>
+          </div>
+          <p className="mt-2.5 max-w-[60ch] text-sm leading-relaxed text-muted">{triage.explanation}</p>
+        </Card>
+      )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button disabled={!state.booking} onClick={next}>
-          {state.booking
-            ? `Book ${state.booking.day} ${state.booking.time}`
-            : "Pick a slot to continue"}
-          <IconArrowRight />
-        </Button>
-        <Button variant="ghost" onClick={next}>
-          I&apos;ll book later
-        </Button>
-      </div>
+      {withGoals && matches.length > 0 && exactCount === 0 && (
+        <p className="rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-muted">
+          No mentor matches all of your placement goals yet, so the closest partial and related matches are shown.
+        </p>
+      )}
+
+      {matches.length > 0 && (
+        <ul className="space-y-3">
+          {matches.map((match, i) => (
+            <MentorCard
+              key={match.mentor.id}
+              match={match}
+              rank={i + 1}
+              booking={state.booking}
+              onPick={(day, time) => patch({ booking: { mentor: match.mentor, day, time } })}
+            />
+          ))}
+        </ul>
+      )}
+
+      <p className="text-sm text-muted">
+        Want more options?{" "}
+        <Link href="/discover" className="font-medium text-primary-text underline-offset-4 hover:underline">
+          Browse every mentor in Discover
+        </Link>
+        .
+      </p>
+
+      <StepActions
+        onBack={nav.back}
+        onContinue={() => nav.next()}
+        continueLabel={state.booking ? `Request ${state.booking.day} ${state.booking.time}` : "Finish — I'll book later"}
+      />
     </div>
   );
 }

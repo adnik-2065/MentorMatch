@@ -2,16 +2,18 @@
 
 import { IconCheck } from "@/components/icons";
 
-export type RailStep = { key: string; label: string; hint: string };
+export type RailStep = { key: string; label: string; hint: string; optional?: boolean };
 
 export function ProgressRail({
   steps,
   current,
+  canJump,
   onJump,
   role,
 }: {
   steps: RailStep[];
   current: number;
+  canJump: (index: number) => boolean;
   onJump: (index: number) => void;
   role: "junior" | "mentor" | null;
 }) {
@@ -20,7 +22,7 @@ export function ProgressRail({
     role === "mentor"
       ? "Around 4 minutes · evidence is optional"
       : role === "junior"
-        ? "Around 2 minutes · finish with real matches"
+        ? "Around 2 minutes · optional steps can be skipped"
         : "A focused setup, tailored to your goal";
 
   return (
@@ -39,6 +41,7 @@ export function ProgressRail({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-label="Onboarding progress"
+          aria-valuetext={`Step ${Math.min(current + 1, steps.length)} of ${steps.length}: ${steps[current]?.label ?? ""}`}
           className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-white/10"
         >
           <div
@@ -48,10 +51,16 @@ export function ProgressRail({
         </div>
         <p className="mt-3 text-xs leading-relaxed text-nav-muted">{timing}</p>
 
-        <ol className="mt-6 space-y-1">
+        {/* Phones get the current step only — the full list would push the form below the fold. */}
+        <p className="mt-4 text-sm font-semibold text-white lg:hidden">
+          {steps[current]?.label}
+          {steps[current]?.optional && <span className="ml-2 text-xs font-normal text-nav-muted">Optional</span>}
+        </p>
+
+        <ol className="mt-6 hidden space-y-1 lg:block">
           {steps.map((step, index) => {
             const state = index < current ? "done" : index === current ? "active" : "todo";
-            const reachable = index <= current;
+            const reachable = index !== current && canJump(index);
             return (
               <li key={step.key}>
                 <button
@@ -81,6 +90,7 @@ export function ProgressRail({
                   <span className="min-w-0">
                     <span className={`block text-sm ${state === "active" ? "font-semibold text-white" : "text-nav-muted"}`}>
                       {step.label}
+                      {step.optional && <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wide text-nav-muted">Optional</span>}
                     </span>
                     <span className="mt-0.5 block text-xs leading-snug text-nav-muted">{step.hint}</span>
                   </span>

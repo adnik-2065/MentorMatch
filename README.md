@@ -104,14 +104,19 @@ Both roles start by choosing a workspace, then adding their college, year, and b
 
 ### 🎓 Junior — "I need help" · ~2 minutes
 
-| # | Step | Why it's there |
-|---|------|----------------|
-| 1 | Pick topics you're learning — `C`, `Java`, `Docker`, `Git`… | Drives your feed and match quality |
-| 2 | Type **one thing you're stuck on right now** | AI triage reads it and finds the real concept gap |
-| 3 | See 3 suggested mentors, each with a reason | Instant proof the platform works |
-| 4 | Book an open slot | You leave onboarding with a session, not a profile |
+| # | Step | Required? | What it does |
+|---|------|-----------|--------------|
+| 1 | Choose your path | Yes | Learner or mentor workspace |
+| 2 | About you — name, college, year, branch | Yes | Branch decides which subjects and seniors come first |
+| 3 | Subjects you want help with | Yes (≥ 1) | Drives topic matching |
+| 4 | **Placement goals** — target companies, target positions, season, prep topics | Optional, skippable | Mentors whose *self-reported* experience matches more goals are suggested first |
+| 5 | What you're stuck on right now | Optional, skippable | Rules-based triage names the likely concept gap |
+| 6 | Suggested mentors, each with a plain-language reason | — | View experience, pick a slot to request a session, or book later |
+| 7 | All set | — | Saves the profile (see [Backend](#backend-profiles-placement-goals-and-matching)) and links to your dashboard |
 
-> The whole point: a junior should have a **booked session before they finish signing up**. No empty dashboard, no "explore around" dead end.
+Every step has **Back** and **Continue**; optional steps show **Skip** while they're empty (so skipping never throws away input). Values survive going back and forward, errors appear inline under the field after the first Continue, focus moves to the new step heading (or the first invalid field), and the progress rail lets you jump back to any completed step. Placement goals can be edited later from Discover.
+
+> The placement step explains what goals do and don't do: MentorMatch doesn't verify employment, and mentors don't represent their employers or promise referrals, interviews, or offers.
 
 ### 🧑‍🏫 Senior — "I can help" · ~10 minutes
 
@@ -295,7 +300,7 @@ One codebase, one database, one deploy. Next.js handles both the UI and the API 
 | Language | TypeScript | Catches the dumb bugs before the demo |
 | Styling | Tailwind CSS + shadcn/ui | Good-looking UI without designing anything from scratch |
 | Database | **PostgreSQL** (Neon / Supabase) | Relational data — users, skills, sessions, reviews all link together |
-| ORM | Prisma | Schema in one file, typed queries, easy migrations |
+| Database access | `pg` + plain SQL (`db/schema.sql`) | Small schema, no ORM needed yet; queries live in `src/server/profileStore.ts` |
 | Auth | NextAuth (Auth.js) — Google + college email OTP | Login in an afternoon instead of a week |
 | Realtime chat | **Supabase Realtime** *(or Pusher)* | Live messages + presence without running a WebSocket server |
 | AI | **Google Gemini API** | Generous free tier, fast, great for a student project |
@@ -343,9 +348,9 @@ npm install
 npm run dev
 ```
 
-Open [localhost:3000/onboarding](http://localhost:3000/onboarding) — **the onboarding dashboard is built and clickable end to end.** It runs on mock data, so no database or API key is needed yet; everything below is for when you wire up the backend.
+Open [localhost:3000/onboarding](http://localhost:3000/onboarding) — **the onboarding dashboard is built and clickable end to end.** Without a database it still works: your profile is kept in this browser and the UI says plainly that nothing was saved to a server. Add `DATABASE_URL` (below) to store profiles in Postgres and match students against registered mentors.
 
-Open [localhost:3000/discover](http://localhost:3000/discover) to try the browser-side mentor matcher. It ranks mentors using topic fit, branch context, skill evidence, ratings, and availability; explains each score; and saves confirmed bookings locally for your own account.
+Open [localhost:3000/discover](http://localhost:3000/discover) to try the mentor matcher. It ranks registered mentors (when a database is configured) plus the labelled sample profiles using placement goals, topic fit, branch context, skill evidence, ratings, and availability; explains each result; and saves requested sessions locally for your own account.
 
 ### Accounts and dashboards
 
@@ -363,34 +368,75 @@ The sample accounts exist so the dashboards can be demoed with a full week of da
 
 ### Environment
 
-Create `.env.local` in the project root:
+Only one variable is used today. Copy the example and fill it in:
+
+```bash
+cp .env.example .env.local
+```
 
 ```env
-# Database
-DATABASE_URL="postgresql://user:pass@host/mentormatch?sslmode=require"
-
-# Auth
-NEXTAUTH_SECRET="run: openssl rand -base64 32"
-NEXTAUTH_URL="http://localhost:3000"
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
-
-# AI
-GEMINI_API_KEY="your_key_here"
-
-# Optional — add as you build these features
-RESEND_API_KEY=""
-UPLOADTHING_TOKEN=""
-GITHUB_TOKEN=""          # for SkillProof repo analysis
+# Postgres connection string. Leave unset to run without server-side storage.
+DATABASE_URL="postgresql://user:pass@localhost:5432/mentormatch"
 ```
+
+`DATABASE_URL` is read only on the server (`src/server/db.ts`) and never sent to the browser. Without it, `/api/profile` and `/api/mentors` return `503 database_not_configured` and the UI shows "saved on this device only" — it never reports a save that didn't happen. Auth, AI, and email keys aren't needed yet because those features aren't built.
 
 ### Database setup
 
+Any Postgres 13+ works (local, Docker, Neon, Supabase). For a local throwaway database:
+
 ```bash
-npx prisma generate
-npx prisma db push       # or: npx prisma migrate dev
-npx prisma studio        # optional — browse your data in the browser
+docker run --name mentormatch-db -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=mentormatch -p 5432:5432 -d postgres:16
+echo 'DATABASE_URL="postgresql://postgres:dev@localhost:5432/mentormatch"' > .env.local
+npm run db:migrate      # applies db/schema.sql; safe to re-run
 ```
+
+`db:migrate` uses `DATABASE_URL` from your shell, falling back to `.env.local`.
+
+### Backend: profiles, placement goals, and matching
+
+**Tables** (`db/schema.sql`)
+
+- `profiles` — role, name, college, year, branch, subjects, placement season, availability. Identified by `owner_token_hash`.
+- `placement_targets` — a student's target companies and positions, one row each, with a normalized `match_key` (so `SDE` and `Software Engineer` are one target).
+- `mentor_experience` — company and position as **separate** nullable columns (at least one required), kind, start/end year, and `verification`, which defaults to `self_reported`. No code path writes `verified`, because no verification process exists yet.
+
+**API** (`src/app/api/*/route.ts` → `src/server/profileApi.ts`)
+
+| Route | What it does |
+|---|---|
+| `GET /api/profile` | Returns **your own** profile only (404 otherwise) |
+| `PUT /api/profile` | Validates the body on the server (`src/lib/profileValidation.ts`) and creates or updates your profile. JSON only, 32 KB max; 422 with per-field errors on bad input |
+| `GET /api/mentors` | Public list of registered mentors with open slots. Shortened name, year, branch, subjects, experience, and slots only — no college, email, or owner data |
+
+**Who can see what.** There's no login yet. The first save sets an httpOnly, SameSite=Lax cookie (`mm_owner`) holding a random 256-bit token. The database stores only its SHA-256 hash, and every read or write of a profile is keyed by that hash, so a browser can only ever reach its own profile. Clearing cookies loses access to that server copy. This is a stand-in for real auth, not a replacement.
+
+**Matching** (`src/lib/placement.ts`, `matchMentors` in `src/lib/onboarding.ts`) is rules-based and deterministic, with no LLM.
+
+1. The existing topic score is computed as before: subject fit, branch, SkillProof level, rating, online, and session count. With no placement goals, results are exactly what they were.
+2. With goals, each mentor gets a tier. **Exact** means every requested dimension (company and/or position) matches their listed experience. **Partial** means some do. **Related** means the mentor has a position in the same family (e.g. AI Researcher for an ML Engineer target) or teaches that family's prep topics. **None** means nothing matches. Tier sorts first; score breaks ties. So mentors matching more goals always rank above partial matches, and company-only, position-only, and combined searches all work.
+3. Company and position names are normalized (legal suffixes, aliases like `L&T`, `SDE`/`SWE`, seniority words) before comparing.
+4. Every result carries a plain-language explanation that says which kind of match it is, for example *"Worked at Amazon and has SDE experience (self-reported)."*, *"Has Data Scientist experience (self-reported), but not at your target companies."*, or *"Does not match your target company — suggested for subject fit, rating and availability."* The explanation only says "worked as X at Y" when one experience entry names both.
+
+Placement season is stored and shown but doesn't affect ranking.
+
+### Tests
+
+```bash
+npm test                                          # Vitest: matching, validation, API, flow, onboarding UI
+TEST_DATABASE_URL="postgresql://…/mentormatch_test" npm test   # also runs the Postgres integration test
+```
+
+The Postgres test applies the schema and **truncates** `profiles`, so point it at a throwaway database.
+
+### Known limitations
+
+- No real authentication yet: the owner cookie ties a profile to one browser.
+- Session requests/bookings are still stored in the browser only.
+- Mentor company and position experience is self-reported and labelled that way everywhere; there's no employment verification.
+- SkillProof analysis and the "stuck on" triage are rules-based placeholders, not AI.
+- Sample mentors are bundled demo data and are labelled "Sample profile". Their company and position entries are separate, so nothing claims they held a specific role at a specific company.
+- Newly registered mentors show "New mentor" with no rating until real reviews exist.
 
 ### Run
 
@@ -437,7 +483,7 @@ MentorMatch/
 │   │   ├── onboarding.ts      # ✅ branch subjects, mock mentors, mock triage
 │   │   ├── account.ts         # ✅ stored profile → dashboard view (or sample)
 │   │   ├── dashboard.ts       # ✅ sample sessions, requests, doubts, recaps
-│   │   ├── db.ts              # Prisma client
+│   │   ├── db.ts              # pg pool (server only)
 │   │   ├── auth.ts            # NextAuth config
 │   │   └── ai/
 │   │       ├── gemini.ts      # client + shared config
@@ -459,10 +505,11 @@ MentorMatch/
 - [x] Branch-specific subject lists for 10 engineering branches
 - [x] Student and mentor dashboards, driven by your own onboarding profile
 - [x] Account switcher with two sample accounts for demos
-- [ ] Prisma schema + database setup
+- [x] Postgres schema + setup (`db/schema.sql`, `npm run db:migrate`)
 - [ ] Auth + college email verification
 - [ ] Profiles with self-declared skills
 - [x] Client-side mentor discovery with explainable matching, filters, and booking
+- [x] Placement goals (companies, positions, season) + rules-based placement matching
 - [ ] Mentor availability + slot booking
 
 **Phase 2 — Core Loop**

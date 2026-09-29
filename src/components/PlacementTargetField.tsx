@@ -15,6 +15,7 @@ export function PlacementTargetField({
   selected,
   onChange,
   compact = false,
+  error,
 }: {
   id: string;
   label: string;
@@ -24,6 +25,7 @@ export function PlacementTargetField({
   selected: string[];
   onChange: (values: string[]) => void;
   compact?: boolean;
+  error?: string;
 }) {
   const [query, setQuery] = useState("");
   const generatedId = useId();
@@ -53,7 +55,7 @@ export function PlacementTargetField({
     <div className="space-y-2.5">
       <div>
         <label htmlFor={id} className="text-sm font-medium text-fg">{label}</label>
-        {hint && <p className="mt-1 text-xs leading-5 text-faint">{hint}</p>}
+        {hint && <p id={`${id}-hint`} className="mt-1 text-xs leading-5 text-faint">{hint}</p>}
       </div>
 
       {selected.length > 0 && (
@@ -81,6 +83,8 @@ export function PlacementTargetField({
           list={listId}
           value={query}
           placeholder={placeholder}
+          aria-describedby={[hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(" ") || undefined}
+          aria-invalid={error ? true : undefined}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -104,6 +108,8 @@ export function PlacementTargetField({
           <span className={compact ? "sr-only" : ""}>Add</span>
         </button>
       </div>
+
+      {error && <p id={`${id}-error`} className="text-xs font-medium text-danger">{error}</p>}
 
       {suggestions.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
