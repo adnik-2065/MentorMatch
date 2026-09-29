@@ -17,14 +17,16 @@ import {
   IconUsers,
 } from "@/components/icons";
 import { mentorView, useAccount } from "@/lib/account";
+import { acceptBooking, cancelBooking } from "@/lib/bookings";
 import { DAYS } from "@/lib/onboarding";
+import type { Request } from "@/lib/dashboard";
 
 const focus =
   "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 export function MentorDashboard() {
-  const { ready, account, profile } = useAccount();
-  const view = ready && account ? mentorView(account, profile) : null;
+  const { ready, account, profile, bookings, doubts } = useAccount();
+  const view = ready && account ? mentorView(account, profile, bookings, doubts) : null;
 
   if (!view) {
     return (
@@ -48,8 +50,23 @@ export function MentorDashboard() {
 
   const [next, ...later] = view.sessions;
   const firstName = view.name.split(" ")[0];
+  const unread =
+    view.sessions.reduce((n, s) => n + s.unread, 0) +
+    view.doubts.filter((d) => d.answers === 0).length;
   const peak = Math.max(1, ...Object.values(view.week));
   const pending = view.requests.length;
+
+  /**
+   * Requests backed by a real booking are the only ones that change anything:
+   * accepting confirms the slot — which is what opens the room for the junior —
+   * and declining releases it. The view deliberately isn't refreshed, so the
+   * card can keep showing the outcome instead of vanishing under the cursor.
+   */
+  const decide = (request: Request, decision: "accepted" | "declined") => {
+    if (!account || !request.bookingId) return;
+    if (decision === "accepted") acceptBooking(account, request.bookingId);
+    else cancelBooking(account, request.bookingId);
+  };
 
   return (
     <DashboardShell
@@ -57,6 +74,7 @@ export function MentorDashboard() {
       name={view.name}
       meta={[view.year, view.branch].filter(Boolean).join(" ")}
       demo={view.demo}
+      unread={unread}
     >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -130,7 +148,7 @@ export function MentorDashboard() {
             body="Juniors searching your subjects see you sorted by rating. The first request usually arrives the same day."
           />
         ) : (
-          <RequestInbox requests={view.requests} />
+          <RequestInbox requests={view.requests} onDecide={decide} />
         )}
       </Section>
 
@@ -264,13 +282,13 @@ export function MentorDashboard() {
 
                 <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-muted">{doubt.text}</p>
 
-                <button
-                  type="button"
-                  className={`mt-4 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-fg transition-colors duration-200 hover:bg-inset ${focus}`}
+                <Link
+                  href={`/chat?s=${doubt.id}`}
+                  className={`mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-fg transition-colors duration-200 hover:bg-inset ${focus}`}
                 >
                   <IconMessage />
                   Answer in chat
-                </button>
+                </Link>
               </li>
             ))}
           </ul>

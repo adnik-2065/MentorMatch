@@ -10,8 +10,17 @@
  * real session is the only change needed once auth lands.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { analyseRepos, type Mentor, type OnboardingState } from "./onboarding";
+import { doubtToFeed, loadDoubts, type AskedDoubt } from "./doubts";
+import { loadRecaps, type StoredRecap } from "./recaps";
+import {
+  addBooking,
+  bookingToRequest,
+  bookingToSession,
+  loadBookings,
+  type Booking,
+} from "./bookings";
 import {
   MENTOR_DOUBTS,
   MENTOR_ME,
@@ -72,19 +81,78 @@ export function signOut() {
   window.localStorage.removeItem(ACCOUNT_KEY);
 }
 
-/** localStorage is client-only, so everything renders after mount. */
-export function useAccount() {
-  const [ready, setReady] = useState(false);
-  const [account, setAccount] = useState<AccountId | null>(null);
-  const [profile, setProfile] = useState<OnboardingState | null>(null);
+type AccountState = {
+  ready: boolean;
+  account: AccountId | null;
+  profile: OnboardingState | null;
+  bookings: Booking[];
+  doubts: AskedDoubt[];
+  recaps: StoredRecap[];
+};
 
-  useEffect(() => {
-    setAccount(currentAccount());
-    setProfile(loadProfile());
-    setReady(true);
+const EMPTY: AccountState = {
+  ready: false,
+  account: null,
+  profile: null,
+  bookings: [],
+  doubts: [],
+  recaps: [],
+};
+
+/**
+ * The slot picked during onboarding used to live on the profile alone, which
+ * made it the one session in the product nobody had to accept. It's an ordinary
+ * booking now — this moves it across once and clears it from the profile, so
+ * withdrawing it doesn't bring it back on the next load.
+ */
+export function adoptOnboardingBooking(
+  account: AccountId,
+  profile: OnboardingState | null,
+): Booking[] {
+  const bookings = loadBookings(account);
+  const picked = profile?.booking;
+  if (account !== "me" || !picked) return bookings;
+
+  addBooking("me", {
+    mentorId: picked.mentor.id,
+    mentorName: picked.mentor.name,
+    year: picked.mentor.year,
+    branch: picked.mentor.branch,
+    topic: profile.triage?.topic ?? profile.learnTopics[0] ?? "Session",
+    concept: profile.triage?.concept ?? "Booked from your doubt",
+    day: picked.day,
+    time: picked.time,
+    length: "45 min",
+  });
+  saveProfile({ ...profile, booking: null });
+
+  return loadBookings("me");
+}
+
+/**
+ * localStorage is client-only, so everything renders after mount. `refresh`
+ * is for the pages that write — booking and cancelling both need the view
+ * rebuilt without a reload.
+ */
+export function useAccount() {
+  const [state, setState] = useState<AccountState>(EMPTY);
+
+  const refresh = useCallback(() => {
+    const account = currentAccount();
+    const profile = loadProfile();
+    setState({
+      ready: true,
+      account,
+      profile,
+      bookings: account ? adoptOnboardingBooking(account, profile) : [],
+      doubts: account ? loadDoubts(account) : [],
+      recaps: account ? loadRecaps(account) : [],
+    });
   }, []);
 
-  return { ready, account, profile };
+  useEffect(refresh, [refresh]);
+
+  return { ...state, refresh };
 }
 
 /* ---------------------------------- views ---------------------------------- */
@@ -125,16 +193,17 @@ export type MentorView = {
   };
 };
 
-function demoStudent(): StudentView {
+function demoStudent(bookings: Booking[], recaps: StoredRecap[]): StudentView {
   return {
     demo: true,
     name: STUDENT.name,
     year: STUDENT.year,
     branch: STUDENT.branch,
     topics: STUDENT.topics,
-    sessions: STUDENT_SESSIONS,
+    sessions: [...STUDENT_SESSIONS, ...bookings.map(bookingToSession)],
     toRate: STUDENT_TO_RATE,
-    recaps: STUDENT_RECAPS,
+    // Yours first — a recap you just generated shouldn't hide under the samples.
+    recaps: [...recaps, ...STUDENT_RECAPS],
     recommended: recommendedFor(STUDENT.topics, STUDENT.branch),
     stats: {
       sessionsDone: STUDENT.sessionsDone,
@@ -144,8 +213,21 @@ function demoStudent(): StudentView {
   };
 }
 
-function demoMentor(): MentorView {
+/** The sample account is Meera on the mentoring side, so slots taken from her land here. */
+const DEMO_MENTOR_ID = "meera";
+
+function demoMentor(bookings: Booking[], asked: AskedDoubt[]): MentorView {
   const week: Record<string, number> = { Mon: 2, Tue: 1, Wed: 3, Thu: 2, Fri: 1, Sat: 2, Sun: 0 };
+  const booked = bookings
+    .filter((b) => b.mentorId === DEMO_MENTOR_ID && b.status === "pending")
+    .map((b) => bookingToRequest(b, STUDENT.name, STUDENT.year, STUDENT.branch));
+
+  // A doubt goes to whoever claims the subject, so only the matching ones reach you.
+  const claimed = MENTOR_ME.skills.map((s) => s.topic);
+  const inbox = asked
+    .filter((d) => claimed.includes(d.topic))
+    .map((d) => doubtToFeed(d, STUDENT.name, STUDENT.year));
+
   return {
     demo: true,
     name: MENTOR_ME.name,
@@ -155,9 +237,9 @@ function demoMentor(): MentorView {
     week,
     weeklyHours: MENTOR_ME.weeklyHours,
     busiestDay: MENTOR_ME.busiestDay,
-    requests: MENTOR_REQUESTS,
+    requests: [...booked, ...MENTOR_REQUESTS],
     sessions: MENTOR_SESSIONS,
-    doubts: MENTOR_DOUBTS,
+    doubts: [...inbox, ...MENTOR_DOUBTS],
     stats: {
       mentorScore: MENTOR_ME.mentorScore,
       rating: MENTOR_ME.rating,
@@ -170,28 +252,14 @@ function demoMentor(): MentorView {
 }
 
 /** Your own learning dashboard — booking, subjects and name all come from onboarding. */
-export function studentView(account: AccountId, profile: OnboardingState | null): StudentView | null {
-  if (account === "demo") return demoStudent();
+export function studentView(
+  account: AccountId,
+  profile: OnboardingState | null,
+  bookings: Booking[] = [],
+  recaps: StoredRecap[] = [],
+): StudentView | null {
+  if (account === "demo") return demoStudent(bookings, recaps);
   if (!profile || (profile.role !== "junior" && profile.learnTopics.length === 0)) return null;
-
-  const booking = profile.booking;
-  const sessions: Session[] = booking
-    ? [
-        {
-          id: "own-booking",
-          with: booking.mentor.name,
-          year: booking.mentor.year,
-          branch: booking.mentor.branch,
-          topic: profile.triage?.topic ?? profile.learnTopics[0] ?? "Session",
-          concept: profile.triage?.concept ?? "Booked from your doubt",
-          day: booking.day,
-          time: booking.time,
-          length: "45 min",
-          status: "confirmed",
-          unread: 0,
-        },
-      ]
-    : [];
 
   return {
     demo: false,
@@ -199,18 +267,24 @@ export function studentView(account: AccountId, profile: OnboardingState | null)
     year: profile.year,
     branch: profile.branch,
     topics: profile.learnTopics,
-    sessions,
-    // A brand new account has nothing to rate and no recaps yet — say so rather than invent.
+    // Including the one from onboarding — it's in the same store as the rest.
+    sessions: bookings.map(bookingToSession),
+    // A brand new account has nothing to rate — say so rather than invent it.
     toRate: [],
-    recaps: [],
+    recaps,
     recommended: recommendedFor(profile.learnTopics, profile.branch),
     stats: { sessionsDone: 0, hoursLearnt: 0, streak: 0 },
   };
 }
 
 /** Your own mentoring dashboard — the week chart is your real availability grid. */
-export function mentorView(account: AccountId, profile: OnboardingState | null): MentorView | null {
-  if (account === "demo") return demoMentor();
+export function mentorView(
+  account: AccountId,
+  profile: OnboardingState | null,
+  bookings: Booking[] = [],
+  asked: AskedDoubt[] = [],
+): MentorView | null {
+  if (account === "demo") return demoMentor(bookings, asked);
   if (!profile || (profile.role !== "mentor" && profile.teachTopics.length === 0)) return null;
 
   const findings = profile.proofStatus === "done" ? analyseRepos(profile.teachTopics) : [];
