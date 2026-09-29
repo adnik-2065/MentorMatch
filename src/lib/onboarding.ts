@@ -17,6 +17,8 @@ export type Mentor = {
   rating: number;
   reviews: number;
   skills: string[];
+  companyExperience: string[];
+  roleExperience: string[];
   verified: "high" | "medium" | "claimed";
   online: boolean;
   slots: { day: string; time: string }[];
@@ -27,6 +29,26 @@ export type Triage = {
   explanation: string;
   topic: string;
   mentors: { mentor: Mentor; reason: string }[];
+};
+
+export type MentorMatch = {
+  mentor: Mentor;
+  score: number;
+  matchedSkills: string[];
+  reasons: string[];
+  matchedCompanies?: string[];
+  matchedRoles?: string[];
+  placementMatch?: "exact" | "partial" | "alternative" | null;
+};
+
+export type MatchPreferences = {
+  query?: string;
+  topics?: string[];
+  branch?: string;
+  verifiedOnly?: boolean;
+  onlineOnly?: boolean;
+  targetCompanies?: string[];
+  targetRoles?: string[];
 };
 
 export type OnboardingState = {
@@ -41,6 +63,9 @@ export type OnboardingState = {
   role: Role | null;
   // junior
   learnTopics: string[];
+  targetCompanies: string[];
+  targetRoles: string[];
+  placementSeason: string;
   stuckOn: string;
   triage: Triage | null;
   booking: { mentor: Mentor; day: string; time: string } | null;
@@ -61,6 +86,9 @@ export const initialState: OnboardingState = {
   branch: "",
   role: null,
   learnTopics: [],
+  targetCompanies: [],
+  targetRoles: [],
+  placementSeason: "",
   stuckOn: "",
   triage: null,
   booking: null,
@@ -479,6 +507,34 @@ export function topicGroupsFor(branch: string): TopicGroup[] {
 
 export const TOPICS = [...new Set(ALL_TOPIC_GROUPS.flatMap((g) => g.topics))];
 
+export const TARGET_COMPANIES = [
+  "Amazon",
+  "Google",
+  "Microsoft",
+  "Adobe",
+  "Atlassian",
+  "Flipkart",
+  "Goldman Sachs",
+  "Qualcomm",
+  "Siemens",
+  "Tata Motors",
+  "Larsen & Toubro",
+];
+
+export const TARGET_JOB_ROLES = [
+  "Software Development Engineer (SDE)",
+  "Data Scientist",
+  "AI Researcher",
+  "Backend Engineer",
+  "Frontend Engineer",
+  "DevOps Engineer",
+  "Product Engineer",
+  "Embedded Systems Engineer",
+  "Electrical Engineer",
+  "Mechanical Design Engineer",
+  "Structural Engineer",
+];
+
 export const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
 export const BRANCHES = [
@@ -545,6 +601,8 @@ export const MENTORS: Mentor[] = [
     rating: 4.9,
     reviews: 32,
     skills: ["Docker", "Git", "Linux"],
+    companyExperience: ["Amazon"],
+    roleExperience: ["Software Development Engineer (SDE)", "DevOps Engineer"],
     verified: "high",
     online: true,
     slots: [
@@ -561,6 +619,8 @@ export const MENTORS: Mentor[] = [
     rating: 4.8,
     reviews: 27,
     skills: ["Docker", "Node.js", "DBMS"],
+    companyExperience: ["Microsoft"],
+    roleExperience: ["Software Development Engineer (SDE)", "Backend Engineer"],
     verified: "high",
     online: false,
     slots: [
@@ -576,6 +636,8 @@ export const MENTORS: Mentor[] = [
     rating: 4.6,
     reviews: 19,
     skills: ["C", "Operating Systems", "DSA"],
+    companyExperience: ["Amazon"],
+    roleExperience: ["AI Researcher"],
     verified: "medium",
     online: true,
     slots: [
@@ -591,6 +653,8 @@ export const MENTORS: Mentor[] = [
     rating: 4.7,
     reviews: 24,
     skills: ["Java", "DSA", "SQL"],
+    companyExperience: ["Google"],
+    roleExperience: ["Data Scientist", "Software Development Engineer (SDE)"],
     verified: "high",
     online: true,
     slots: [
@@ -606,6 +670,8 @@ export const MENTORS: Mentor[] = [
     rating: 4.4,
     reviews: 11,
     skills: ["Git", "JavaScript", "React"],
+    companyExperience: ["Atlassian"],
+    roleExperience: ["Frontend Engineer"],
     verified: "medium",
     online: false,
     slots: [
@@ -621,6 +687,8 @@ export const MENTORS: Mentor[] = [
     rating: 4.8,
     reviews: 21,
     skills: ["Structural Analysis", "AutoCAD", "Surveying"],
+    companyExperience: ["Larsen & Toubro"],
+    roleExperience: ["Structural Engineer"],
     verified: "high",
     online: true,
     slots: [
@@ -637,6 +705,8 @@ export const MENTORS: Mentor[] = [
     rating: 4.7,
     reviews: 18,
     skills: ["Thermodynamics", "SolidWorks", "Strength of Materials"],
+    companyExperience: ["Tata Motors"],
+    roleExperience: ["Mechanical Design Engineer"],
     verified: "medium",
     online: false,
     slots: [
@@ -652,6 +722,8 @@ export const MENTORS: Mentor[] = [
     rating: 4.9,
     reviews: 23,
     skills: ["Electrical Machines", "Power Systems", "MATLAB"],
+    companyExperience: ["Siemens"],
+    roleExperience: ["Electrical Engineer"],
     verified: "high",
     online: true,
     slots: [
@@ -667,6 +739,8 @@ export const MENTORS: Mentor[] = [
     rating: 4.6,
     reviews: 15,
     skills: ["Embedded C", "Microcontrollers", "VLSI Design"],
+    companyExperience: ["Qualcomm"],
+    roleExperience: ["Embedded Systems Engineer"],
     verified: "medium",
     online: false,
     slots: [
@@ -762,6 +836,134 @@ const DEFAULT_TRIAGE = {
     "Before the solution, the gap is breaking the problem into what you're given, what you're solving for, and the step between them.",
 };
 
+/** Explainable browser-side ranking shared by onboarding and Discover. */
+function matchMentorsBase({
+  query = "",
+  topics = [],
+  branch = "",
+  verifiedOnly = false,
+  onlineOnly = false,
+}: MatchPreferences): MentorMatch[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  const rule = normalizedQuery
+    ? TRIAGE_RULES.find((item) => item.match.some((keyword) => normalizedQuery.includes(keyword)))
+    : undefined;
+  const requested = [...new Set([...topics, ...(rule?.topic ? [rule.topic] : [])])];
+  const requestedLower = requested.map((topic) => topic.toLowerCase());
+  const queryWords = normalizedQuery.split(/\W+/).filter((word) => word.length > 2);
+
+  return MENTORS.filter((mentor) => !verifiedOnly || mentor.verified !== "claimed")
+    .filter((mentor) => !onlineOnly || mentor.online)
+    .map((mentor) => {
+      const matchedSkills = mentor.skills.filter((skill) => {
+        const lowerSkill = skill.toLowerCase();
+        return (
+          requestedLower.some(
+            (topic) => lowerSkill === topic || lowerSkill.includes(topic) || topic.includes(lowerSkill),
+          ) ||
+          (normalizedQuery.length > 0 &&
+            (normalizedQuery.includes(lowerSkill) ||
+              queryWords.some((word) => lowerSkill.includes(word))))
+        );
+      });
+
+      let score = 24;
+      score += Math.min(44, matchedSkills.length * 32);
+      if (branch && mentor.branch === branch) score += 10;
+      if (mentor.verified === "high") score += 10;
+      if (mentor.verified === "medium") score += 6;
+      score += Math.round(Math.max(0, mentor.rating - 4) * 8);
+      if (mentor.online) score += 5;
+      if (mentor.reviews >= 20) score += 3;
+
+      const reasons: string[] = [];
+      if (matchedSkills.length > 0) reasons.push(`Strong match for ${matchedSkills.join(" and ")}`);
+      if (branch && mentor.branch === branch) reasons.push("Same branch context");
+      if (mentor.verified === "high") reasons.push("High-confidence SkillProof");
+      else if (mentor.verified === "medium") reasons.push("Verified skill evidence");
+      if (mentor.online) reasons.push("Available for quick help now");
+      if (reasons.length === 0) reasons.push(`${mentor.rating} rated across ${mentor.reviews} sessions`);
+
+      return {
+        mentor,
+        score: Math.min(99, score),
+        matchedSkills,
+        reasons: reasons.slice(0, 3),
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.mentor.rating - a.mentor.rating);
+}
+
+function normalizePlacementValues(values: string[] = []) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function joinExperience(values: string[]) {
+  if (values.length <= 1) return values[0] ?? "";
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")}, and ${values.at(-1)}`;
+}
+
+/** Adds optional placement goals without changing the legacy ranking when none are set. */
+export function matchMentors(preferences: MatchPreferences): MentorMatch[] {
+  const targetCompanies = normalizePlacementValues(preferences.targetCompanies);
+  const targetRoles = normalizePlacementValues(preferences.targetRoles);
+  const baseMatches = matchMentorsBase(preferences);
+
+  if (targetCompanies.length === 0 && targetRoles.length === 0) return baseMatches;
+
+  const companyTargets = new Set(targetCompanies.map((value) => value.toLowerCase()));
+  const roleTargets = new Set(targetRoles.map((value) => value.toLowerCase()));
+  const wantsCompanies = companyTargets.size > 0;
+  const wantsRoles = roleTargets.size > 0;
+
+  return baseMatches
+    .map((match) => {
+      const matchedCompanies = (match.mentor.companyExperience ?? []).filter((company) =>
+        companyTargets.has(company.toLowerCase()),
+      );
+      const matchedRoles = (match.mentor.roleExperience ?? []).filter((role) =>
+        roleTargets.has(role.toLowerCase()),
+      );
+      const companyMatch = !wantsCompanies || matchedCompanies.length > 0;
+      const roleMatch = !wantsRoles || matchedRoles.length > 0;
+      const matchedDimensions = Number(wantsCompanies && matchedCompanies.length > 0)
+        + Number(wantsRoles && matchedRoles.length > 0);
+      const placementMatch: "exact" | "partial" | "alternative" = companyMatch && roleMatch
+        ? "exact"
+        : matchedDimensions > 0
+          ? "partial"
+          : "alternative";
+
+      let placementReason = "Alternative based on skills, branch, rating and availability";
+      const rolePhrase = matchedRoles.length === 1
+        ? `held a ${matchedRoles[0]} role`
+        : `held ${joinExperience(matchedRoles)} roles`;
+      if (matchedCompanies.length > 0 && matchedRoles.length > 0) {
+        placementReason = `Worked at ${joinExperience(matchedCompanies)} and ${rolePhrase} · Self-reported`;
+      } else if (matchedCompanies.length > 0) {
+        placementReason = `Worked at ${joinExperience(matchedCompanies)} · Self-reported`;
+      } else if (matchedRoles.length > 0) {
+        placementReason = `${rolePhrase[0].toUpperCase()}${rolePhrase.slice(1)} · Self-reported`;
+      }
+
+      return {
+        ...match,
+        score: Math.min(99, match.score + matchedCompanies.length * 12 + matchedRoles.length * 12),
+        matchedCompanies,
+        matchedRoles,
+        placementMatch,
+        reasons: [placementReason, ...match.reasons].slice(0, 3),
+      };
+    })
+    .sort((a, b) => {
+      const priority = (value: MentorMatch["placementMatch"]) =>
+        value === "exact" ? 2 : value === "partial" ? 1 : 0;
+      const placementDifference = priority(b.placementMatch) - priority(a.placementMatch);
+      return placementDifference || b.score - a.score || b.mentor.rating - a.mentor.rating;
+    });
+}
+
 function reasonFor(mentor: Mentor, topic: string) {
   const verified =
     mentor.verified === "claimed" ? "self-claimed" : `${mentor.verified}-confidence verified`;
@@ -771,32 +973,36 @@ function reasonFor(mentor: Mentor, topic: string) {
 }
 
 /** Mock of `POST /api/match` — swap for the Gemini call when the API exists. */
-export function runTriage(text: string, context: { branch?: string; topics?: string[] } = {}): Triage {
+export function runTriage(
+  text: string,
+  context: {
+    branch?: string;
+    topics?: string[];
+    targetCompanies?: string[];
+    targetRoles?: string[];
+  } = {},
+): Triage {
   const lower = text.toLowerCase();
   const rule = TRIAGE_RULES.find((r) => r.match.some((k) => lower.includes(k)));
   const fallback = { ...DEFAULT_TRIAGE, topic: context.topics?.[0] ?? "Engineering Mathematics" };
   const { topic, concept, explanation } = rule ?? fallback;
 
-  // Skill match first, then same branch — a Civil doubt should not surface a CSE senior.
-  const ranked = [...MENTORS]
-    .sort((a, b) => {
-      const aHas = a.skills.includes(topic) ? 1 : 0;
-      const bHas = b.skills.includes(topic) ? 1 : 0;
-      if (aHas !== bHas) return bHas - aHas;
-
-      const aBranch = a.branch === context.branch ? 1 : 0;
-      const bBranch = b.branch === context.branch ? 1 : 0;
-      if (aBranch !== bBranch) return bBranch - aBranch;
-
-      return b.rating - a.rating;
-    })
-    .slice(0, 3);
+  const ranked = matchMentors({
+    query: text,
+    topics: [...(context.topics ?? []), topic],
+    branch: context.branch,
+    targetCompanies: context.targetCompanies,
+    targetRoles: context.targetRoles,
+  }).slice(0, 3);
 
   return {
     topic,
     concept,
     explanation,
-    mentors: ranked.map((mentor) => ({ mentor, reason: reasonFor(mentor, topic) })),
+    mentors: ranked.map(({ mentor, score, reasons }) => ({
+      mentor,
+      reason: `${score}% match · ${reasons[0] ?? reasonFor(mentor, topic)}`,
+    })),
   };
 }
 

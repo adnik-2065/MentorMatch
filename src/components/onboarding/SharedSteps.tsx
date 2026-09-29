@@ -136,8 +136,8 @@ export function ProfileStep({
   return (
     <div className="space-y-7">
       <StepHeading
-        title="Tell us where you are"
-        subtitle="Your year and branch decide who you get matched with — and who gets matched to you."
+        title="A little context makes every match better"
+        subtitle="We use your year, branch and college to prioritize seniors who understand your coursework. Nothing here is publicly shared by default."
       />
 
       <div className="grid gap-5 sm:grid-cols-2">
@@ -157,6 +157,17 @@ export function ProfileStep({
           placeholder="Your institute"
           onChange={(e) => patch({ college: e.target.value })}
         />
+        <div className="sm:col-span-2">
+          <Input
+            id="college-email"
+            type="email"
+            label="College email (optional)"
+            hint="Saved to your local profile only. Verification is not required in this build."
+            value={state.email}
+            placeholder="you@college.ac.in"
+            onChange={(e) => patch({ email: e.target.value })}
+          />
+        </div>
       </div>
 
       <ChoiceGroup label="Year">
@@ -215,8 +226,8 @@ export function RoleStep({ patch, next }: { patch: Patch; next: () => void }) {
   return (
     <div className="space-y-7">
       <StepHeading
-        title="What brings you here first?"
-        subtitle="One account, both hats. You can switch on the other side any time from your dashboard."
+        title="How do you want to use MentorMatch?"
+        subtitle="Choose your starting workspace. You can always add the other side later without creating another account."
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -225,19 +236,19 @@ export function RoleStep({ patch, next }: { patch: Patch; next: () => void }) {
             key={c.role}
             type="button"
             onClick={() => pick(c.role)}
-            className="group cursor-pointer rounded-xl border border-line bg-surface p-5 text-left transition-colors duration-200 outline-none hover:border-primary hover:bg-primary-soft/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+            className="group cursor-pointer rounded-2xl border border-line bg-surface p-6 text-left shadow-sm transition-all duration-200 outline-none hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_45px_rgb(23_26_43/0.09)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
           >
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-primary-soft text-primary-text">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary-soft text-primary-text transition-colors group-hover:bg-primary group-hover:text-on-primary">
               {c.icon}
             </span>
             <h3 className="mt-4 font-sans text-lg font-semibold text-fg">{c.title}</h3>
             <p className="mt-1.5 text-sm leading-relaxed text-muted">{c.body}</p>
-            <p className="mt-4 text-xs text-faint">{c.meta}</p>
+            <p className="mt-5 inline-flex rounded-full bg-inset px-3 py-1.5 text-xs font-medium text-faint">{c.meta}</p>
           </button>
         ))}
       </div>
 
-      <Card className="flex flex-wrap items-center gap-3 bg-inset">
+      <Card className="flex flex-wrap items-center gap-3 border-primary/15 bg-primary-soft/40">
         <Badge tone="primary">
           <IconSparkle className="h-3 w-3" />
           Tip

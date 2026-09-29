@@ -1,81 +1,95 @@
 import Link from "next/link";
-import { IconArrowRight, IconShield, IconSparkle, IconCalendar } from "@/components/icons";
+import type { ReactNode } from "react";
+import {
+  IconArrowRight,
+  IconCalendar,
+  IconCheck,
+  IconDot,
+  IconSearch,
+  IconShield,
+  IconSparkle,
+  IconStar,
+} from "@/components/icons";
 
-const points = [
-  {
-    icon: <IconShield className="h-5 w-5" />,
-    title: "Verified, not self-declared",
-    body: "SkillProof reads a senior's real repos and quizzes them on their own code before the badge appears.",
-  },
-  {
-    icon: <IconSparkle className="h-5 w-5" />,
-    title: "Describe the bug, get the person",
-    body: "Paste an error and we find the underlying concept gap — then route you to someone who's fixed it.",
-  },
-  {
-    icon: <IconCalendar className="h-5 w-5" />,
-    title: "Real slots, real ratings",
-    body: "Mentors publish weekly availability. You rate the session afterwards, and top rated show up first.",
-  },
-];
+const focus =
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 export default function Home() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-5 py-20 sm:px-6 sm:py-28">
-      <p className="text-sm font-medium tracking-wide text-primary-text uppercase">MentorMatch</p>
+    <main className="min-h-screen overflow-hidden bg-bg">
+      <header className="border-b border-line bg-surface/85 backdrop-blur-xl">
+        <div className="mx-auto flex min-h-16 max-w-7xl items-center gap-6 px-5 sm:px-8">
+          <Link href="/" className={`flex items-center gap-2 font-sans font-semibold text-fg ${focus}`}>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-on-primary shadow-lg shadow-primary/20"><IconSparkle /></span>
+            MentorMatch
+          </Link>
+          <nav className="ml-auto flex items-center gap-2">
+            <Link href="/signin" className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:bg-inset hover:text-fg ${focus}`}>Sign in</Link>
+            <Link href="/onboarding" className={`rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-lg shadow-primary/20 hover:bg-primary-hover ${focus}`}>Get started</Link>
+          </nav>
+        </div>
+      </header>
 
-      <h1 className="mt-4 max-w-[18ch] font-sans text-4xl leading-[1.1] font-semibold text-fg sm:text-5xl">
-        Find the senior who already solved it.
-      </h1>
+      <section className="relative mx-auto grid max-w-7xl gap-14 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-28">
+        <div aria-hidden="true" className="absolute -left-40 top-10 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative">
+          <p className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary-text"><IconSparkle className="h-3.5 w-3.5" /> Built for campus learning</p>
+          <h1 className="mt-6 max-w-[14ch] font-sans text-5xl font-semibold leading-[1.04] tracking-[-0.035em] text-fg sm:text-6xl">The right senior for the exact thing you&apos;re stuck on.</h1>
+          <p className="mt-6 max-w-xl text-lg leading-8 text-muted">Go beyond generic tutor listings. MentorMatch understands your blocker, explains every match, and helps you book a senior who has already solved it.</p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link href="/onboarding" className={`inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-on-primary shadow-[0_12px_28px_rgb(var(--primary-shadow)/0.24)] transition-transform hover:-translate-y-0.5 hover:bg-primary-hover ${focus}`}>Create your workspace <IconArrowRight /></Link>
+            <Link href="/discover" className={`inline-flex min-h-12 items-center gap-2 rounded-xl border border-line-strong bg-surface px-6 text-sm font-semibold text-fg shadow-sm hover:border-primary/30 hover:bg-primary-soft/40 ${focus}`}><IconSearch /> Explore mentors</Link>
+          </div>
+          <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs font-medium text-faint">
+            <span className="flex items-center gap-1.5"><IconCheck className="text-success" /> No OTP setup</span>
+            <span className="flex items-center gap-1.5"><IconCheck className="text-success" /> Transparent match scores</span>
+            <span className="flex items-center gap-1.5"><IconCheck className="text-success" /> Browser-local prototype</span>
+          </div>
+        </div>
 
-      <p className="mt-5 max-w-[58ch] text-lg leading-relaxed text-muted">
-        You&apos;re a first-year stuck on pointers in C. Two floors above you is a third-year who
-        debugged the exact same segfault last semester. MentorMatch finds that person.
-      </p>
+        <div className="relative">
+          <div className="rounded-[2rem] border border-line bg-surface/80 p-3 shadow-[0_35px_90px_rgb(0_0_0/0.32)] backdrop-blur-xl">
+            <div className="rounded-[1.4rem] bg-nav p-5 text-white sm:p-7">
+              <div className="flex items-center justify-between gap-4">
+                <div><p className="text-xs font-semibold uppercase tracking-widest text-nav-muted">Smart match</p><h2 className="mt-1 font-sans text-xl font-semibold">Docker container exits on startup</h2></div>
+                <span className="rounded-xl bg-white/10 px-3 py-2 text-xs text-nav-muted">3 matches</span>
+              </div>
+              <div className="mt-5 flex items-center gap-3 rounded-xl border border-line bg-surface p-3 text-sm text-faint"><IconSearch /> Describe your blocker, not just the subject</div>
+            </div>
+            <div className="space-y-3 p-2 pt-4 sm:p-4">
+              <PreviewMentor rank="01" name="Aarav S." meta="3rd Year · CSE" score="94" online />
+              <PreviewMentor rank="02" name="Nisha R." meta="4th Year · IT" score="88" />
+            </div>
+          </div>
+          <div className="absolute -bottom-6 -left-4 hidden rounded-2xl border border-line bg-surface p-4 shadow-xl sm:block">
+            <p className="flex items-center gap-2 text-xs font-semibold text-success"><IconShield /> Verified skill evidence</p>
+            <p className="mt-1.5 text-xs text-faint">Real projects, not profile claims</p>
+          </div>
+        </div>
+      </section>
 
-      <div className="mt-8 flex flex-wrap gap-3">
-        <Link
-          href="/onboarding"
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-medium text-on-primary transition-colors duration-200 outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
-        >
-          Get started
-          <IconArrowRight />
-        </Link>
-        <a
-          href="https://github.com/adnik-2065/MentorMatch"
-          className="inline-flex min-h-11 items-center rounded-lg border border-line-strong bg-surface px-6 text-sm font-medium text-fg transition-colors duration-200 outline-none hover:bg-inset focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
-        >
-          Read the README
-        </a>
-      </div>
-
-      <p className="mt-6 text-sm text-faint">
-        Already onboarded?{" "}
-        <Link
-          href="/signin"
-          className="font-medium text-primary-text underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Sign in
-        </Link>{" "}
-        — or open a sample account from there.
-      </p>
-
-      <ul className="mt-16 grid gap-6 sm:grid-cols-3">
-        {points.map((p) => (
-          <li key={p.title}>
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-primary-soft text-primary-text">
-              {p.icon}
-            </span>
-            <h2 className="mt-3.5 font-sans text-base font-semibold text-fg">{p.title}</h2>
-            <p className="mt-1.5 text-sm leading-relaxed text-muted">{p.body}</p>
-          </li>
-        ))}
-      </ul>
-
-      <p className="mt-16 border-t border-line pt-6 text-xs leading-relaxed text-faint">
-        Early build — onboarding is wired up with mock data. Chat, booking and the AI layer come
-        next.
-      </p>
+      <section className="border-t border-line bg-surface">
+        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-8 md:grid-cols-3">
+          <Feature icon={<IconSearch />} title="Context-aware matching" body="Topic fit, branch, proof, ratings and availability combine into one explainable score." />
+          <Feature icon={<IconShield />} title="Trust you can inspect" body="Verified evidence is clearly separated from self-claimed experience." />
+          <Feature icon={<IconCalendar />} title="From blocker to booking" body="Compare open slots and confirm a session without leaving the matching flow." />
+        </div>
+      </section>
     </main>
   );
+}
+
+function PreviewMentor({ rank, name, meta, score, online = false }: { rank: string; name: string; meta: string; score: string; online?: boolean }) {
+  return (
+    <div className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-4 shadow-sm">
+      <span className="text-xs font-semibold text-faint">{rank}</span>
+      <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft font-sans text-sm font-bold text-primary-text">{name.split(" ").map((part) => part[0]).join("")}</span>
+      <div className="min-w-0 flex-1"><p className="flex items-center gap-2 font-sans text-sm font-semibold text-fg">{name}{online && <IconDot className="h-1.5 w-1.5 text-success" />}</p><p className="mt-0.5 text-xs text-faint">{meta}</p><p className="mt-2 flex items-center gap-1 text-[11px] text-warning"><IconStar className="h-3 w-3" /> 4.9 · Docker verified</p></div>
+      <div className="text-center"><p className="text-lg font-bold text-primary-text">{score}%</p><p className="text-[9px] uppercase tracking-wide text-faint">match</p></div>
+    </div>
+  );
+}
+
+function Feature({ icon, title, body }: { icon: ReactNode; title: string; body: string }) {
+  return <div><span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary-text">{icon}</span><h2 className="mt-4 font-sans text-lg font-semibold text-fg">{title}</h2><p className="mt-2 text-sm leading-6 text-muted">{body}</p></div>;
 }

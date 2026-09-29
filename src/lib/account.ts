@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { analyseRepos, type Mentor, type OnboardingState } from "./onboarding";
+import { analyseRepos, initialState, type Mentor, type OnboardingState } from "./onboarding";
 import {
   MENTOR_DOUBTS,
   MENTOR_ME,
@@ -39,7 +39,20 @@ export function loadProfile(): OnboardingState | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(PROFILE_KEY);
-    return raw ? (JSON.parse(raw) as OnboardingState) : null;
+    if (!raw) return null;
+    const stored = JSON.parse(raw) as Partial<OnboardingState>;
+    return {
+      ...initialState,
+      ...stored,
+      learnTopics: Array.isArray(stored.learnTopics) ? stored.learnTopics : [],
+      targetCompanies: Array.isArray(stored.targetCompanies) ? stored.targetCompanies : [],
+      targetRoles: Array.isArray(stored.targetRoles) ? stored.targetRoles : [],
+      placementSeason: typeof stored.placementSeason === "string" ? stored.placementSeason : "",
+      teachTopics: Array.isArray(stored.teachTopics) ? stored.teachTopics : [],
+      availability: stored.availability && typeof stored.availability === "object"
+        ? stored.availability
+        : {},
+    };
   } catch {
     return null;
   }

@@ -2,11 +2,7 @@
 
 import { IconCheck } from "@/components/icons";
 
-export type RailStep = {
-  key: string;
-  label: string;
-  hint: string;
-};
+export type RailStep = { key: string; label: string; hint: string };
 
 export function ProgressRail({
   steps,
@@ -19,22 +15,21 @@ export function ProgressRail({
   onJump: (index: number) => void;
   role: "junior" | "mentor" | null;
 }) {
-  const pct = Math.round((current / steps.length) * 100);
-
+  const pct = Math.round((current / Math.max(1, steps.length - 1)) * 100);
   const timing =
     role === "mentor"
-      ? "About 10 minutes. Verification is skippable."
+      ? "Around 4 minutes · evidence is optional"
       : role === "junior"
-        ? "About 2 minutes. You'll finish with a booked session."
-        : "About 2 minutes to start.";
+        ? "Around 2 minutes · finish with real matches"
+        : "A focused setup, tailored to your goal";
 
   return (
-    <aside className="lg:sticky lg:top-10 lg:h-fit lg:w-72 lg:shrink-0">
-      <div className="rounded-xl border border-line bg-surface p-5 lg:border-0 lg:bg-transparent lg:p-0">
+    <aside className="lg:sticky lg:top-8 lg:h-fit lg:w-72 lg:shrink-0">
+      <div className="rounded-3xl bg-nav p-6 text-white shadow-[0_20px_55px_rgb(23_24_43/0.16)]">
         <div className="flex items-baseline justify-between gap-3">
-          <h1 className="font-sans text-lg font-semibold text-fg">Get set up</h1>
-          <span className="text-sm tabular-nums text-muted">
-            Step {Math.min(current + 1, steps.length)} of {steps.length}
+          <h1 className="font-sans text-lg font-semibold text-white">Create your workspace</h1>
+          <span className="text-xs tabular-nums text-nav-muted">
+            {Math.min(current + 1, steps.length)}/{steps.length}
           </span>
         </div>
 
@@ -44,58 +39,50 @@ export function ProgressRail({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-label="Onboarding progress"
-          className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-inset"
+          className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-white/10"
         >
           <div
             className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
             style={{ width: `${pct}%` }}
           />
         </div>
+        <p className="mt-3 text-xs leading-relaxed text-nav-muted">{timing}</p>
 
-        <p className="mt-2.5 text-xs leading-relaxed text-faint">{timing}</p>
-
-        <ol className="mt-5 space-y-1">
-          {steps.map((step, i) => {
-            const state = i < current ? "done" : i === current ? "active" : "todo";
-            const reachable = i <= current;
+        <ol className="mt-6 space-y-1">
+          {steps.map((step, index) => {
+            const state = index < current ? "done" : index === current ? "active" : "todo";
+            const reachable = index <= current;
             return (
               <li key={step.key}>
                 <button
                   type="button"
                   disabled={!reachable}
+                  onClick={() => reachable && onJump(index)}
                   aria-current={state === "active" ? "step" : undefined}
-                  onClick={() => onJump(i)}
-                  className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
+                  className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     state === "active"
-                      ? "bg-primary-soft"
+                      ? "bg-white/10"
                       : reachable
-                        ? "cursor-pointer hover:bg-inset"
+                        ? "cursor-pointer hover:bg-white/[0.07]"
                         : "cursor-default"
                   }`}
                 >
                   <span
-                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold tabular-nums ${
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold tabular-nums ${
                       state === "done"
-                        ? "border-success bg-success text-surface"
+                        ? "border-success bg-success text-white"
                         : state === "active"
-                          ? "border-primary text-primary-text"
-                          : "border-line text-faint"
+                          ? "border-primary bg-primary text-on-primary"
+                          : "border-white/20 text-nav-muted"
                     }`}
                   >
-                    {state === "done" ? <IconCheck className="h-3 w-3" /> : i + 1}
+                    {state === "done" ? <IconCheck className="h-3 w-3" /> : index + 1}
                   </span>
                   <span className="min-w-0">
-                    <span
-                      className={`block text-sm ${
-                        state === "todo" ? "text-faint" : "font-medium text-fg"
-                      }`}
-                    >
+                    <span className={`block text-sm ${state === "active" ? "font-semibold text-white" : "text-nav-muted"}`}>
                       {step.label}
-                      {state === "done" && <span className="sr-only"> — completed</span>}
                     </span>
-                    <span className="mt-0.5 block text-xs leading-snug text-faint">
-                      {step.hint}
-                    </span>
+                    <span className="mt-0.5 block text-xs leading-snug text-nav-muted">{step.hint}</span>
                   </span>
                 </button>
               </li>

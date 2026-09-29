@@ -29,8 +29,8 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
           title={`You're set up, ${firstName}`}
           subtitle={
             isMentor
-              ? "You're listed and bookable. The first request usually arrives the same day."
-              : "That's it — you leave onboarding with a session, not an empty dashboard."
+              ? "Your mentor profile and weekly availability are ready to preview."
+              : "Your learning workspace is ready, with matches tailored to your subjects."
           }
         />
       </div>
@@ -48,7 +48,7 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
             {state.triage?.topic ?? state.learnTopics[0]} — {state.triage?.concept}
           </p>
           <p className="mt-3 text-xs leading-relaxed text-faint">
-            The session room opens at slot time. You&apos;ll get a reminder 15 minutes before.
+            This prototype saves the booking in your browser and adds it to your dashboard.
           </p>
         </Card>
       )}
@@ -111,14 +111,14 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
         <ul className="mt-3.5 space-y-2.5 text-sm leading-relaxed text-muted">
           {(isMentor
             ? [
-                "Juniors searching your topics now see you, sorted by rating.",
-                "You get pinged for Instant Help while you're marked online.",
-                "After 3 sessions, you can train your Mentor Twin.",
+                "Your subjects and availability now shape your mentor dashboard.",
+                "Your profile is ready for the matching experience.",
+                "Requests and chat can be connected when the backend is added.",
               ]
             : [
-                "Your session room opens at slot time — everything happens in chat.",
-                "You'll rate the session afterwards; that unlocks your next booking.",
-                "An AI recap with practice tasks lands in your notes vault.",
+                "Use Find a mentor to compare transparent match scores.",
+                "Bookings are saved locally and shown on your dashboard.",
+                "Chat, reminders and recaps can be connected later.",
               ]
           ).map((line) => (
             <li key={line} className="flex items-start gap-2.5">

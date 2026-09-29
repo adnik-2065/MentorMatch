@@ -22,7 +22,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${outfit.variable} ${workSans.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={`${outfit.variable} ${workSans.variable} h-full antialiased`}
+    >
       <body className="min-h-full bg-bg text-fg">{children}</body>
     </html>
   );

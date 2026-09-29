@@ -23,10 +23,10 @@ export function Button({
   type?: "button" | "submit";
 }) {
   // min-h-11 (44px) keeps every button above the mobile touch-target minimum.
-  const base = `inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-45 ${focus}`;
+  const base = `inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-45 ${focus}`;
   const styles = {
-    primary: "bg-primary text-on-primary hover:bg-primary-hover",
-    outline: "border border-line-strong bg-surface text-fg hover:bg-inset",
+    primary: "bg-primary text-on-primary shadow-[0_8px_20px_rgb(var(--primary-shadow)/0.22)] hover:-translate-y-0.5 hover:bg-primary-hover",
+    outline: "border border-line-strong bg-surface text-fg shadow-sm hover:border-primary/35 hover:bg-primary-soft/40",
     ghost: "text-muted hover:bg-inset hover:text-fg",
   }[variant];
 
@@ -42,7 +42,7 @@ export function Button({
   );
 }
 
-const inputClass = `w-full min-h-11 rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-fg transition-colors duration-200 placeholder:text-faint hover:border-line-strong ${focus} focus-visible:border-primary`;
+const inputClass = `w-full min-h-12 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-fg shadow-sm transition-colors duration-200 placeholder:text-faint hover:border-line-strong ${focus} focus-visible:border-primary`;
 
 export function Input({
   label,
@@ -134,10 +134,10 @@ export function Chip({
       role="switch"
       aria-checked={selected}
       onClick={onClick}
-      className={`inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border px-4 text-sm transition-colors duration-200 ${focus} ${
+      className={`inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl border px-4 text-sm transition-all duration-200 ${focus} ${
         selected
-          ? "border-primary bg-primary-soft font-medium text-primary-text"
-          : "border-line bg-surface text-muted hover:border-line-strong hover:text-fg"
+          ? "border-primary/40 bg-primary-soft font-semibold text-primary-text shadow-sm"
+          : "border-line bg-surface text-muted shadow-sm hover:border-primary/30 hover:text-fg"
       }`}
     >
       {selected && <span aria-hidden="true">✓</span>}
@@ -148,15 +148,15 @@ export function Chip({
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-line bg-surface p-5 ${className}`}>{children}</div>
+    <div className={`rounded-2xl border border-line bg-surface p-5 shadow-[0_8px_30px_rgb(23_26_43/0.04)] ${className}`}>{children}</div>
   );
 }
 
 export function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <header className="space-y-2">
-      <h2 className="max-w-[24ch] text-2xl font-semibold text-fg sm:text-3xl">{title}</h2>
-      <p className="max-w-[58ch] text-sm leading-relaxed text-muted">{subtitle}</p>
+      <h2 className="max-w-[25ch] text-3xl font-semibold leading-tight text-fg sm:text-4xl">{title}</h2>
+      <p className="max-w-[62ch] text-sm leading-6 text-muted sm:text-base">{subtitle}</p>
     </header>
   );
 }

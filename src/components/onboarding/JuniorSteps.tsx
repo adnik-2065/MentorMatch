@@ -1,10 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Card, Stars, StepHeading, Textarea } from "@/components/ui";
+import { Badge, Button, Card, Input, Stars, StepHeading, Textarea } from "@/components/ui";
+import { PlacementTargetField } from "@/components/PlacementTargetField";
 import { TopicPicker } from "./TopicPicker";
 import { IconArrowRight, IconDot, IconShield, IconSparkle } from "@/components/icons";
-import { runTriage, type Mentor, type OnboardingState } from "@/lib/onboarding";
+import {
+  runTriage,
+  TARGET_COMPANIES,
+  TARGET_JOB_ROLES,
+  type Mentor,
+  type OnboardingState,
+} from "@/lib/onboarding";
 
 type Patch = (patch: Partial<OnboardingState>) => void;
 
@@ -38,6 +45,39 @@ export function LearnTopicsStep({
         selected={state.learnTopics}
         onToggle={toggle}
       />
+
+      <Card className="space-y-5 bg-inset/45">
+        <div>
+          <h3 className="text-sm font-semibold text-fg">Optional placement goals</h3>
+          <p className="mt-1 text-xs leading-5 text-faint">
+            Add companies or roles to prioritize mentors with matching self-reported experience.
+          </p>
+        </div>
+        <PlacementTargetField
+          id="target-companies"
+          label="Target companies"
+          placeholder="Search or add a company"
+          options={TARGET_COMPANIES}
+          selected={state.targetCompanies}
+          onChange={(targetCompanies) => patch({ targetCompanies })}
+        />
+        <PlacementTargetField
+          id="target-roles"
+          label="Target job roles"
+          placeholder="Search or add a role"
+          options={TARGET_JOB_ROLES}
+          selected={state.targetRoles}
+          onChange={(targetRoles) => patch({ targetRoles })}
+        />
+        <Input
+          id="placement-season"
+          label="Placement season or year"
+          hint="Optional — for example, 2027 or Winter 2026."
+          value={state.placementSeason}
+          placeholder="2027"
+          onChange={(event) => patch({ placementSeason: event.target.value })}
+        />
+      </Card>
 
       <div className="flex flex-wrap items-center gap-4">
         <Button disabled={state.learnTopics.length === 0} onClick={next}>
@@ -85,7 +125,12 @@ export function StuckStep({
     // Stands in for POST /api/match — Gemini reads the text and returns the concept gap.
     setTimeout(() => {
       patch({
-        triage: runTriage(state.stuckOn, { branch: state.branch, topics: state.learnTopics }),
+        triage: runTriage(state.stuckOn, {
+          branch: state.branch,
+          topics: state.learnTopics,
+          targetCompanies: state.targetCompanies,
+          targetRoles: state.targetRoles,
+        }),
       });
       setRunning(false);
       next();

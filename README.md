@@ -100,7 +100,7 @@ Seniors stop answering the same question 40 times. Juniors get unblocked at midn
 
 ## Onboarding
 
-Both roles start the same way — **sign up with your college email, verify the OTP, pick your year and branch.** That takes about a minute. From there the paths split, and either one can be added later: the same account can learn and mentor.
+Both roles start by choosing a workspace, then adding their college, year, and branch. From there the paths split, and either side can be added later: the same account can learn and mentor. **The current prototype intentionally skips email OTP verification** so onboarding, matching, and dashboard UX can be developed first.
 
 ### 🎓 Junior — "I need help" · ~2 minutes
 
@@ -345,6 +345,8 @@ npm run dev
 
 Open [localhost:3000/onboarding](http://localhost:3000/onboarding) — **the onboarding dashboard is built and clickable end to end.** It runs on mock data, so no database or API key is needed yet; everything below is for when you wire up the backend.
 
+Open [localhost:3000/discover](http://localhost:3000/discover) to try the browser-side mentor matcher. It ranks mentors using topic fit, branch context, skill evidence, ratings, and availability; explains each score; and saves confirmed bookings locally for your own account.
+
 ### Accounts and dashboards
 
 Finishing onboarding creates your account in the browser (`localStorage`, key `mentormatch.profile.v1`) and drops you on `/dashboard` (junior) or `/mentor` (senior). Those pages show **your** data — the name you typed, the subjects you picked, the slots you published, the session you booked. Nothing is pre-filled for you; sections you haven't used yet show an empty state with the action that fills them.
@@ -409,7 +411,8 @@ MentorMatch/
 │                              # Session, Review, DoubtThread, Message
 ├── src/
 │   ├── app/
-│   │   ├── onboarding/        # ✅ built — the onboarding dashboard
+│   │   ├── onboarding/        # ✅ built — streamlined role-based onboarding
+│   │   ├── discover/          # ✅ built — explainable matching + local booking
 │   │   ├── signin/            # ✅ built — your account, or a sample one
 │   │   ├── dashboard/         # ✅ built — student: sessions, ratings, recaps
 │   │   ├── mentor/            # ✅ built — mentor: requests, schedule, score
@@ -459,7 +462,7 @@ MentorMatch/
 - [ ] Prisma schema + database setup
 - [ ] Auth + college email verification
 - [ ] Profiles with self-declared skills
-- [ ] Topic search and mentor discovery, sorted by rating
+- [x] Client-side mentor discovery with explainable matching, filters, and booking
 - [ ] Mentor availability + slot booking
 
 **Phase 2 — Core Loop**

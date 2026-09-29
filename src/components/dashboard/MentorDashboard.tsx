@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Badge, Card } from "@/components/ui";
+import { Badge, Button, Card } from "@/components/ui";
 import { DashboardGate, DashboardShell, EmptyState, Section, StatTile } from "./Shell";
-import { SessionCard } from "./SessionCard";
 import { RequestInbox } from "./RequestInbox";
 import { OnlineToggle } from "./OnlineToggle";
+import { ActivityChart } from "./ActivityChart";
 import {
   IconArrowRight,
   IconCalendar,
@@ -31,257 +31,120 @@ export function MentorDashboard() {
       <DashboardGate
         ready={ready}
         signedIn={Boolean(account)}
-        title={account ? "You haven't set up mentoring yet" : "Sign in to see your dashboard"}
-        body={
-          account
-            ? "Claim the subjects you can teach and publish a few slots. Juniors searching those subjects will start seeing you the same day."
-            : "Your dashboard is built from what you enter in onboarding. You can also open the sample account to see one that's already in use."
-        }
-        cta={
-          account
-            ? { href: "/onboarding", label: "Set up mentoring" }
-            : { href: "/signin", label: "Go to sign in" }
-        }
+        title={account ? "Set up your mentor workspace" : "Sign in to open your workspace"}
+        body={account ? "Choose your strongest subjects and publish a few hours. Your dashboard will be built from that profile." : "Use your local profile or open the sample mentor account."}
+        cta={account ? { href: "/onboarding", label: "Set up mentoring" } : { href: "/signin", label: "Go to sign in" }}
       />
     );
   }
 
-  const [next, ...later] = view.sessions;
+  const next = view.sessions[0];
   const firstName = view.name.split(" ")[0];
   const peak = Math.max(1, ...Object.values(view.week));
   const pending = view.requests.length;
 
   return (
-    <DashboardShell
-      role="mentor"
-      name={view.name}
-      meta={[view.year, view.branch].filter(Boolean).join(" ")}
-      demo={view.demo}
-    >
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <DashboardShell role="mentor" name={view.name} meta={[view.year, view.branch].filter(Boolean).join(" · ")} demo={view.demo}>
+      <div className="flex flex-wrap items-end justify-between gap-5">
         <div>
-          <h1 className="font-sans text-2xl font-semibold text-fg sm:text-3xl">
-            {pending > 0
-              ? `${pending} juniors are waiting on you, ${firstName}`
-              : `You're live, ${firstName}`}
-          </h1>
-          <p className="mt-1.5 text-sm text-muted">
-            {next
-              ? `Next session ${next.day.toLowerCase()} at ${next.time} with ${next.with}`
-              : view.weeklyHours > 0
-                ? `${view.weeklyHours} bookable hours published. Nothing booked yet.`
-                : "No slots published — juniors can't book you until you add some."}
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-text">Mentor overview</p>
+          <h1 className="mt-1.5 font-sans text-3xl font-semibold tracking-tight text-fg sm:text-[34px]">Welcome back, {firstName}</h1>
+          <p className="mt-2 text-sm text-muted">{pending ? `${pending} students are waiting for your response.` : "Your mentoring activity is all caught up."}</p>
         </div>
-
-        <Link
-          href="/onboarding"
-          className={`inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-5 text-sm font-medium text-fg transition-colors duration-200 hover:bg-inset ${focus}`}
-        >
-          <IconCalendar />
-          Edit availability
+        <Link href="/onboarding" className={`inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-[0_8px_22px_rgb(var(--primary-shadow)/0.22)] transition-all hover:-translate-y-0.5 hover:bg-primary-hover ${focus}`}>
+          <IconCalendar /> Manage availability <IconArrowRight />
         </Link>
       </div>
 
-      <div className="mt-6">
-        <OnlineToggle />
+      <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile label="MentorScore" value={view.stats.mentorScore !== null ? String(view.stats.mentorScore) : "—"} hint="Confidence-weighted standing" icon={<IconTrend />} />
+        <StatTile label="Average rating" value={view.stats.rating !== null ? view.stats.rating.toFixed(1) : "—"} hint={`${view.stats.reviews} rated sessions`} icon={<IconStar filled={false} />} />
+        <StatTile label="Sessions held" value={String(view.stats.sessionsHeld)} hint="All-time completed sessions" icon={<IconUsers />} />
+        <StatTile label="Response time" value={view.stats.responseTime ?? "—"} hint="Median over the last 30 days" icon={<IconClock />} />
       </div>
 
-      <Section title="Your standing">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatTile
-            label="MentorScore"
-            value={view.stats.mentorScore !== null ? String(view.stats.mentorScore) : "—"}
-            hint={view.stats.mentorScore !== null ? "confidence-weighted" : "after your first session"}
-            icon={<IconTrend className="h-3.5 w-3.5" />}
-          />
-          <StatTile
-            label="Rating"
-            value={view.stats.rating !== null ? view.stats.rating.toFixed(1) : "—"}
-            hint={view.stats.reviews > 0 ? `${view.stats.reviews} rated sessions` : "no ratings yet"}
-            icon={<IconStar className="h-3.5 w-3.5" filled={false} />}
-          />
-          <StatTile
-            label="Sessions held"
-            value={String(view.stats.sessionsHeld)}
-            hint="all time"
-            icon={<IconUsers className="h-3.5 w-3.5" />}
-          />
-          <StatTile
-            label="Response time"
-            value={view.stats.responseTime ?? "—"}
-            hint="median, last 30 days"
-            icon={<IconClock className="h-3.5 w-3.5" />}
+      <div className="mt-6 grid gap-5 lg:grid-cols-12">
+        <div className="space-y-5 lg:col-span-8">
+          <section>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div><h2 className="font-sans text-lg font-semibold tracking-tight text-fg">Session requests</h2><p className="mt-1 text-xs text-faint">Review context before accepting a student.</p></div>
+              {pending > 0 && <span className="rounded-full bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning">{pending} awaiting response</span>}
+            </div>
+            {pending === 0 ? <EmptyState title="Inbox zero" body="New requests matching your subjects will appear here." /> : <RequestInbox requests={view.requests} />}
+          </section>
+
+          <ActivityChart
+            title="Student demand"
+            value={view.demo ? "18 requests" : `${view.requests.length} requests`}
+            note="Requests and profile interest over the last seven days"
+            values={view.demo ? [24, 46, 32, 71, 54, 86, 63] : [12, 18, 16, 28, 22, 36, 30]}
+            labels={["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
           />
         </div>
-      </Section>
 
-      <Section
-        title="Session requests"
-        action={
-          pending > 0 ? (
-            <span className="text-xs text-faint">Accepting opens the chat immediately</span>
-          ) : undefined
-        }
-      >
-        {pending === 0 ? (
-          <EmptyState
-            title="No requests yet"
-            body="Juniors searching your subjects see you sorted by rating. The first request usually arrives the same day."
-          />
-        ) : (
-          <RequestInbox requests={view.requests} />
-        )}
-      </Section>
-
-      <Section title="Your schedule">
-        {view.sessions.length === 0 ? (
-          <EmptyState
-            title="Nothing booked yet"
-            body={
-              view.weeklyHours > 0
-                ? "Your slots are published and searchable. Bookings land here as they come in."
-                : "Publish a few slots between 10 AM and 10 PM — mentors with open evenings get booked first."
-            }
-            action={
-              view.weeklyHours === 0 ? (
-                <Link
-                  href="/onboarding"
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover ${focus}`}
-                >
-                  Add slots
-                  <IconArrowRight />
-                </Link>
-              ) : undefined
-            }
-          />
-        ) : (
-          <div className="space-y-3">
-            <SessionCard session={next} perspective="mentor" featured />
-            {later.map((session) => (
-              <SessionCard key={session.id} session={session} perspective="mentor" />
-            ))}
-          </div>
-        )}
-      </Section>
-
-      <div className="mt-10 grid gap-3 lg:grid-cols-2">
-        <Card>
-          <h2 className="font-sans text-base font-semibold text-fg">Your week</h2>
-          <p className="mt-1 text-xs text-faint">
-            {view.weeklyHours} bookable hours
-            {view.busiestDay ? ` · busiest on ${view.busiestDay}` : ""}
-          </p>
-
-          {/* Bar height alone would rely on shape, so each day keeps its number too. */}
-          <div className="mt-5 flex items-end justify-between gap-2">
-            {DAYS.map((day) => {
-              const hours = view.week[day] ?? 0;
-              return (
-                <div key={day} className="flex flex-1 flex-col items-center gap-2">
-                  <span className="text-xs tabular-nums text-faint">{hours}</span>
-                  <div
-                    className={`w-full rounded-t-md ${hours > 0 ? "bg-primary" : "bg-inset"}`}
-                    style={{ height: `${Math.max((hours / peak) * 64, 4)}px` }}
-                    aria-hidden="true"
-                  />
-                  <span className="text-xs text-muted">{day}</span>
+        <aside className="space-y-5 lg:col-span-4">
+          {next ? (
+            <Card className="overflow-hidden p-0">
+              <div className="border-b border-line bg-gradient-to-r from-primary-soft to-surface px-5 py-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary-text">Next session</p>
+              </div>
+              <div className="p-5">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-on-primary">{next.with.split(" ").map((part) => part[0]).join("")}</span>
+                  <div><p className="font-sans text-sm font-semibold text-fg">{next.with}</p><p className="mt-0.5 text-xs text-faint">{next.year} · {next.branch}</p></div>
                 </div>
-              );
-            })}
-          </div>
+                <h3 className="mt-5 font-sans text-lg font-semibold text-fg">{next.topic}</h3>
+                <p className="mt-1 text-xs leading-5 text-muted">{next.concept}</p>
+                <div className="mt-4 flex flex-wrap gap-2"><Badge tone="primary"><IconCalendar className="h-3 w-3" /> {next.day}</Badge><Badge><IconClock className="h-3 w-3" /> {next.time}</Badge></div>
+                <div className="mt-5"><Button full><IconMessage /> Open session</Button></div>
+              </div>
+            </Card>
+          ) : <EmptyState title="No upcoming session" body="Accepted bookings will appear here." />}
 
-          <Link
-            href="/onboarding"
-            className={`mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm text-muted transition-colors duration-200 hover:bg-inset hover:text-fg ${focus}`}
-          >
-            {view.weeklyHours > 0 ? "Add more slots" : "Publish your slots"}
-            <IconArrowRight />
-          </Link>
-        </Card>
+          <OnlineToggle />
 
-        <Card>
-          <h2 className="font-sans text-base font-semibold text-fg">Your subjects</h2>
-          <p className="mt-1 text-xs text-faint">
-            Verified badges rank above self-claimed ones in search.
-          </p>
+          <Card>
+            <div className="flex items-start justify-between gap-3"><div><h2 className="font-sans text-base font-semibold text-fg">Availability</h2><p className="mt-1 text-xs text-faint">{view.weeklyHours} bookable hours</p></div><Link href="/onboarding" className="text-xs font-bold text-primary-text">Edit</Link></div>
+            <div className="mt-5 flex h-28 items-end gap-2">
+              {DAYS.map((day) => {
+                const hours = view.week[day] ?? 0;
+                return (
+                  <div key={day} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                    <span className="text-[9px] font-semibold text-faint">{hours}</span>
+                    <div className="flex h-full w-full items-end rounded-md bg-inset px-1"><div className={`w-full rounded ${hours ? "bg-primary" : "bg-line"}`} style={{ height: `${Math.max((hours / peak) * 100, 6)}%` }} /></div>
+                    <span className="text-[9px] font-semibold text-faint">{day.slice(0, 1)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
 
-          {view.skills.length === 0 ? (
-            <p className="mt-4 text-sm text-muted">
-              You haven&apos;t claimed any subjects yet.
-            </p>
-          ) : (
-            <ul className="mt-4 space-y-2.5">
+          <Card>
+            <div className="flex items-center justify-between gap-3"><h2 className="font-sans text-base font-semibold text-fg">Verified expertise</h2><IconShield className="text-success" /></div>
+            <div className="mt-4 space-y-3">
               {view.skills.map((skill) => (
-                <li key={skill.topic} className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-fg">{skill.topic}</span>
-                  {skill.confidence ? (
-                    <Badge tone={skill.confidence === "High" ? "success" : "warning"}>
-                      <IconShield className="h-3 w-3" />
-                      Verified · {skill.confidence}
-                    </Badge>
-                  ) : (
-                    <Badge>Self-claimed</Badge>
-                  )}
-                </li>
+                <div key={skill.topic} className="flex items-center justify-between gap-3"><span className="text-xs font-semibold text-fg">{skill.topic}</span>{skill.confidence ? <Badge tone={skill.confidence === "High" ? "success" : "warning"}>{skill.confidence}</Badge> : <Badge>Claimed</Badge>}</div>
               ))}
-            </ul>
-          )}
-
-          <p className="mt-4 border-t border-line pt-4 text-xs leading-relaxed text-faint">
-            {view.stats.profileViews > 0
-              ? `${view.stats.profileViews} juniors viewed your profile this week.`
-              : "Profile views show up once juniors start finding you in search."}
-          </p>
-        </Card>
+            </div>
+          </Card>
+        </aside>
       </div>
 
-      <Section
-        title="Open doubts in your subjects"
-        action={
-          view.doubts.length > 0 ? (
-            <span className="text-xs text-faint">No booking needed</span>
-          ) : undefined
-        }
-      >
+      <Section title="Open doubts in your subjects" action={view.doubts.length > 0 ? <span className="text-xs font-semibold text-faint">No booking required</span> : undefined}>
         {view.doubts.length === 0 ? (
-          <EmptyState
-            title="Nothing open right now"
-            body="Unanswered doubts in the subjects you claimed appear here — answer straight from chat, no slot needed."
-          />
+          <EmptyState title="No open doubts" body="Questions in your claimed subjects will show up here." />
         ) : (
-          <ul className="space-y-3">
+          <div className="grid gap-4 md:grid-cols-2">
             {view.doubts.map((doubt) => (
-              <li className="rounded-xl border border-line bg-surface p-5" key={doubt.id}>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-sans text-sm font-semibold text-fg">{doubt.from}</span>
-                  <span className="text-xs text-faint">{doubt.year}</span>
-                  <Badge>{doubt.topic}</Badge>
-                  <span className="ml-auto text-xs text-faint">
-                    {doubt.asked} · {doubt.answers === 0 ? "unanswered" : `${doubt.answers} answered`}
-                  </span>
-                </div>
-
-                <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-muted">{doubt.text}</p>
-
-                <button
-                  type="button"
-                  className={`mt-4 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-fg transition-colors duration-200 hover:bg-inset ${focus}`}
-                >
-                  <IconMessage />
-                  Answer in chat
-                </button>
-              </li>
+              <article key={doubt.id} className="rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgb(23_26_43/0.02)]">
+                <div className="flex flex-wrap items-center gap-2"><span className="font-sans text-sm font-semibold text-fg">{doubt.from}</span><span className="text-[11px] text-faint">{doubt.year}</span><Badge>{doubt.topic}</Badge><span className="ml-auto text-[10px] text-faint">{doubt.asked}</span></div>
+                <p className="mt-4 text-sm leading-6 text-muted">{doubt.text}</p>
+                <button type="button" className={`mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary-soft px-4 text-xs font-bold text-primary-text hover:bg-primary hover:text-on-primary ${focus}`}><IconMessage /> Answer doubt</button>
+              </article>
             ))}
-          </ul>
+          </div>
         )}
       </Section>
-
-      <p className="mt-10 border-t border-line pt-6 text-xs leading-relaxed text-faint">
-        {view.demo
-          ? "Sample account — pre-filled so you can see a dashboard that's been in use. Your own account is untouched."
-          : "Your account. Subjects and slots come from what you entered in onboarding; requests and sessions arrive once the backend is live."}
-      </p>
     </DashboardShell>
   );
 }

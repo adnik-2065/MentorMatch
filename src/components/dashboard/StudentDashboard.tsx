@@ -1,19 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { Badge, Card, Stars } from "@/components/ui";
+import { Badge, Button, Card, Stars } from "@/components/ui";
 import { DashboardGate, DashboardShell, EmptyState, Section, StatTile } from "./Shell";
-import { SessionCard } from "./SessionCard";
 import { RateSessionCard } from "./RateSessionCard";
+import { ActivityChart, ProgressRing } from "./ActivityChart";
 import {
   IconArrowRight,
   IconCalendar,
   IconCheck,
+  IconClock,
   IconDot,
+  IconMessage,
   IconNote,
   IconShield,
   IconSparkle,
   IconTrend,
+  IconUsers,
 } from "@/components/icons";
 import { studentView, useAccount } from "@/lib/account";
 
@@ -29,17 +32,9 @@ export function StudentDashboard() {
       <DashboardGate
         ready={ready}
         signedIn={Boolean(account)}
-        title={account ? "You haven't set up learning yet" : "Sign in to see your dashboard"}
-        body={
-          account
-            ? "Pick the subjects you want to learn and tell us what you're stuck on — this page fills up with your own sessions, not sample ones."
-            : "Your dashboard is built from what you enter in onboarding. You can also open the sample account to see one that's already in use."
-        }
-        cta={
-          account
-            ? { href: "/onboarding", label: "Set up learning" }
-            : { href: "/signin", label: "Go to sign in" }
-        }
+        title={account ? "Set up your learning workspace" : "Sign in to open your workspace"}
+        body={account ? "Choose what you want to learn and add one current blocker. We'll build the dashboard around it." : "Use your own local profile or open the sample student account."}
+        cta={account ? { href: "/onboarding", label: "Set up learning" } : { href: "/signin", label: "Go to sign in" }}
       />
     );
   }
@@ -49,215 +44,149 @@ export function StudentDashboard() {
   const firstName = view.name.split(" ")[0];
 
   return (
-    <DashboardShell
-      role="student"
-      name={view.name}
-      meta={[view.year, view.branch].filter(Boolean).join(" ")}
-      demo={view.demo}
-    >
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <DashboardShell role="student" name={view.name} meta={[view.year, view.branch].filter(Boolean).join(" · ")} demo={view.demo}>
+      <div className="flex flex-wrap items-end justify-between gap-5">
         <div>
-          <h1 className="font-sans text-2xl font-semibold text-fg sm:text-3xl">
-            Welcome back, {firstName}
-          </h1>
-          <p className="mt-1.5 text-sm text-muted">
-            {next
-              ? `Your next session is ${next.day.toLowerCase()} at ${next.time}.`
-              : "Nothing booked right now."}
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-text">Overview</p>
+          <h1 className="mt-1.5 font-sans text-3xl font-semibold tracking-tight text-fg sm:text-[34px]">Good morning, {firstName}</h1>
+          <p className="mt-2 text-sm text-muted">Here&apos;s what&apos;s happening with your learning this week.</p>
         </div>
-
-        <Link
-          href="/onboarding"
-          className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover ${focus}`}
-        >
-          <IconSparkle />
-          Ask a doubt
+        <Link href="/discover" className={`inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-[0_8px_22px_rgb(var(--primary-shadow)/0.22)] transition-all hover:-translate-y-0.5 hover:bg-primary-hover ${focus}`}>
+          <IconSparkle /> Find a mentor <IconArrowRight />
         </Link>
       </div>
 
-      {toRate && (
-        <Section title="Finish this first">
-          <RateSessionCard session={toRate} />
-        </Section>
-      )}
+      <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile label="Sessions completed" value={String(view.stats.sessionsDone)} hint="Lifetime learning sessions" icon={<IconCheck />} />
+        <StatTile label="Focused learning" value={`${view.stats.hoursLearnt}h`} hint="Across sessions and practice" icon={<IconTrend />} />
+        <StatTile label="Matched mentors" value={String(view.recommended.length)} hint="Strong matches for your topics" icon={<IconUsers />} />
+        <StatTile label="Current streak" value={view.stats.streak ? `${view.stats.streak} wk` : "—"} hint="Keep one session every week" icon={<IconCalendar />} />
+      </div>
 
-      <Section
-        title="Upcoming sessions"
-        action={
-          view.sessions.length > 0 ? (
-            <span className="text-xs text-faint">{view.sessions.length} booked</span>
-          ) : undefined
-        }
-      >
-        {view.sessions.length === 0 ? (
-          <EmptyState
-            title="No sessions booked"
-            body="Describe what you're stuck on and we'll route you to a senior who has already solved it."
-            action={
-              <Link
-                href="/onboarding"
-                className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover ${focus}`}
-              >
-                Find a mentor
-                <IconArrowRight />
-              </Link>
-            }
-          />
-        ) : (
-          <div className="space-y-3">
-            <SessionCard session={next} perspective="student" featured />
-            {later.map((session) => (
-              <SessionCard key={session.id} session={session} perspective="student" />
-            ))}
-          </div>
-        )}
-      </Section>
+      {toRate && <div className="mt-6"><RateSessionCard session={toRate} /></div>}
 
-      <Section title="Your subjects">
-        {view.topics.length === 0 ? (
-          <EmptyState
-            title="No subjects picked yet"
-            body="Your subjects decide which mentors surface first and what shows up in your feed."
-          />
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {view.topics.map((topic) => (
-              <span
-                key={topic}
-                className="inline-flex items-center rounded-full border border-line bg-surface px-3.5 py-1.5 text-sm text-muted"
-              >
-                {topic}
-              </span>
-            ))}
-          </div>
-        )}
-      </Section>
+      <div className="mt-6 grid gap-5 lg:grid-cols-12">
+        <div className="space-y-5 lg:col-span-8">
+          {next ? (
+            <section className="overflow-hidden rounded-2xl border border-primary/15 bg-surface shadow-[0_12px_40px_rgb(23_26_43/0.055)]">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-gradient-to-r from-primary-soft/80 to-surface px-5 py-4 sm:px-6">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 animate-[softPulse_2s_ease-in-out_infinite] rounded-full bg-primary" />
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary-text">Next session</p>
+                </div>
+                <Badge tone="primary">Confirmed</Badge>
+              </div>
 
-      <Section title="Your progress">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatTile
-            label="Sessions"
-            value={String(view.stats.sessionsDone)}
-            hint={view.stats.sessionsDone > 0 ? "all rated" : "none yet"}
-            icon={<IconCheck className="h-3.5 w-3.5" />}
+              <div className="p-5 sm:p-6">
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+                  <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-[var(--primary-end)] font-sans text-lg font-bold text-on-primary shadow-lg shadow-primary/20">
+                    {next.with.split(" ").map((part) => part[0]).join("")}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-primary-text">{next.topic}</p>
+                    <h2 className="mt-1 font-sans text-2xl font-semibold tracking-tight text-fg">{next.concept}</h2>
+                    <p className="mt-2 text-sm text-muted">with <strong className="font-semibold text-fg">{next.with}</strong> · {next.year} {next.branch}</p>
+
+                    <div className="mt-5 flex flex-wrap gap-2.5">
+                      <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-bg px-3.5 py-2.5 text-xs font-semibold text-fg"><IconCalendar className="text-primary-text" /> {next.day}</span>
+                      <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-bg px-3.5 py-2.5 text-xs font-semibold text-fg"><IconClock className="text-primary-text" /> {next.time} · {next.length}</span>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col">
+                    <Button><IconMessage /> Open session</Button>
+                    <Button variant="ghost">Reschedule</Button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <EmptyState title="No session booked yet" body="Describe your blocker and compare transparent mentor match scores." action={<Link href="/discover" className={`inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary ${focus}`}>Find a mentor <IconArrowRight /></Link>} />
+          )}
+
+          <ActivityChart
+            title="Learning activity"
+            value={view.stats.hoursLearnt > 0 ? `${view.stats.hoursLearnt}h 20m` : "1h 40m"}
+            note="Focused time across sessions and practice"
+            values={view.demo ? [22, 44, 31, 68, 48, 82, 56] : [12, 28, 18, 42, 35, 58, 30]}
+            labels={["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
           />
-          <StatTile
-            label="Hours learnt"
-            value={`${view.stats.hoursLearnt}h`}
-            hint="since you joined"
-            icon={<IconTrend className="h-3.5 w-3.5" />}
+        </div>
+
+        <aside className="space-y-5 lg:col-span-4">
+          <ProgressRing
+            value={view.demo ? 72 : 46}
+            label={view.demo ? "3 of 4 tasks complete" : "Build your weekly rhythm"}
+            detail={view.demo ? "One task remains from your latest AutoCAD session." : "Sessions and practice tasks contribute to your weekly goal."}
           />
-          <StatTile
-            label="Streak"
-            value={view.stats.streak > 0 ? `${view.stats.streak} weeks` : "—"}
-            hint="at least one session a week"
-            icon={<IconCalendar className="h-3.5 w-3.5" />}
-          />
+
+          <Card className="p-0">
+            <div className="flex items-center justify-between border-b border-line px-5 py-4">
+              <div><h2 className="font-sans text-base font-semibold text-fg">Focus subjects</h2><p className="mt-0.5 text-[11px] text-faint">Used to personalize matching</p></div>
+              <Link href="/onboarding" className="text-xs font-bold text-primary-text">Edit</Link>
+            </div>
+            <div className="space-y-4 p-5">
+              {view.topics.slice(0, 4).map((topic, index) => (
+                <div key={topic}>
+                  <div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-fg">{topic}</span><span className="text-faint">{[76, 58, 43, 31][index] ?? 25}%</span></div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-inset"><div className="h-full rounded-full bg-primary" style={{ width: `${[76, 58, 43, 31][index] ?? 25}%` }} /></div>
+                </div>
+              ))}
+              {view.topics.length === 0 && <p className="text-sm text-muted">No subjects selected yet.</p>}
+            </div>
+          </Card>
+
+          {later.length > 0 && (
+            <Card>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-faint">Coming up next</p>
+              <div className="mt-4 space-y-4">
+                {later.slice(0, 2).map((session) => (
+                  <div key={session.id} className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    <div><p className="text-sm font-semibold text-fg">{session.topic}</p><p className="mt-1 text-xs text-faint">{session.day} · {session.time} with {session.with}</p></div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </aside>
+      </div>
+
+      <Section title="Recommended mentors" action={<Link href="/discover" className="text-xs font-bold text-primary-text">View all mentors →</Link>}>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {view.recommended.map((mentor, index) => (
+            <article key={mentor.id} className="group rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgb(23_26_43/0.02)] transition-all hover:-translate-y-1 hover:border-primary/20 hover:shadow-[0_16px_38px_rgb(23_26_43/0.08)]">
+              <div className="flex items-start justify-between gap-3">
+                <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-soft font-sans text-sm font-bold text-primary-text">{mentor.name.split(" ").map((part) => part[0]).join("")}</span>
+                <span className="rounded-full bg-inset px-2.5 py-1 text-[10px] font-bold text-faint">{index === 0 ? "BEST MATCH" : `#${index + 1} MATCH`}</span>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2"><h3 className="font-sans font-semibold text-fg">{mentor.name}</h3>{mentor.online && <span className="flex items-center gap-1 text-[11px] font-semibold text-success"><IconDot className="h-1.5 w-1.5" /> Online</span>}</div>
+              <p className="mt-1 text-xs text-faint">{mentor.year} · {mentor.branch}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">{mentor.skills.slice(0, 3).map((skill) => <span key={skill} className="rounded-md bg-inset px-2 py-1 text-[10px] font-semibold text-muted">{skill}</span>)}</div>
+              <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
+                <div><div className="flex items-center gap-1.5"><Stars rating={mentor.rating} /><strong className="text-xs text-fg">{mentor.rating}</strong></div><p className="mt-1 text-[10px] text-faint">{mentor.reviews} rated sessions</p></div>
+                <Link href="/discover" className={`inline-flex min-h-9 items-center rounded-lg bg-primary-soft px-3 text-xs font-bold text-primary-text group-hover:bg-primary group-hover:text-on-primary ${focus}`}>View match</Link>
+              </div>
+            </article>
+          ))}
         </div>
       </Section>
 
-      <Section
-        title="Mentors for your subjects"
-        action={<span className="text-xs text-faint">Top rated first</span>}
-      >
-        <ul className="space-y-3">
-          {view.recommended.map((mentor, i) => (
-            <li
-              key={mentor.id}
-              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl border border-line bg-surface p-5"
-            >
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs tabular-nums text-faint">#{i + 1}</span>
-                  <span className="font-sans font-semibold text-fg">{mentor.name}</span>
-                  {mentor.verified !== "claimed" && (
-                    <Badge tone="success">
-                      <IconShield className="h-3 w-3" />
-                      Verified
-                    </Badge>
-                  )}
-                  {mentor.online && (
-                    <Badge tone="primary">
-                      <IconDot className="h-1.5 w-1.5" />
-                      Online
-                    </Badge>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-faint">
-                  {mentor.year} · {mentor.branch} · {mentor.skills.join(", ")}
-                </p>
-                <p className="mt-2 text-xs text-faint">
-                  Next free {mentor.slots[0].day} {mentor.slots[0].time}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <Stars rating={mentor.rating} />
-                    <span className="text-sm font-medium tabular-nums text-fg">{mentor.rating}</span>
-                  </div>
-                  <p className="mt-0.5 text-xs text-faint">{mentor.reviews} sessions</p>
-                </div>
-                <Link
-                  href="/onboarding"
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-fg transition-colors duration-200 hover:bg-inset ${focus}`}
-                >
-                  Book
-                  <IconArrowRight />
-                </Link>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      <Section title="Your notes vault">
+      <Section title="Recent session notes">
         {view.recaps.length === 0 ? (
-          <EmptyState
-            title="No recaps yet"
-            body="After each session an AI recap with practice tasks lands here automatically."
-          />
+          <EmptyState title="Your notes will appear here" body="Session recaps and practice tasks will be available when the backend is connected." />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             {view.recaps.map((recap) => (
-              <Card key={recap.id}>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-primary-text">
-                    <IconNote className="h-3.5 w-3.5" />
-                  </span>
-                  <Badge>{recap.topic}</Badge>
-                  <span className="text-xs text-faint">{recap.date}</span>
-                </div>
-                <h3 className="mt-3 text-sm leading-relaxed font-medium text-fg">{recap.title}</h3>
-                <p className="mt-3 text-xs text-faint">
-                  Practice tasks: {recap.done} of {recap.tasks} done
-                </p>
-                <div
-                  role="progressbar"
-                  aria-valuenow={recap.done}
-                  aria-valuemin={0}
-                  aria-valuemax={recap.tasks}
-                  aria-label={`${recap.topic} practice tasks`}
-                  className="mt-2 h-1.5 overflow-hidden rounded-full bg-inset"
-                >
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${(recap.done / recap.tasks) * 100}%` }}
-                  />
-                </div>
+              <Card key={recap.id} className="group">
+                <div className="flex items-center gap-2"><span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft text-primary-text"><IconNote /></span><Badge>{recap.topic}</Badge><span className="ml-auto text-[11px] text-faint">{recap.date}</span></div>
+                <h3 className="mt-4 text-sm font-semibold leading-6 text-fg">{recap.title}</h3>
+                <div className="mt-4 flex items-center justify-between text-xs"><span className="text-faint">Practice progress</span><strong className="text-fg">{recap.done}/{recap.tasks}</strong></div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-inset"><div className="h-full rounded-full bg-primary" style={{ width: `${(recap.done / recap.tasks) * 100}%` }} /></div>
               </Card>
             ))}
           </div>
         )}
       </Section>
-
-      <p className="mt-10 border-t border-line pt-6 text-xs leading-relaxed text-faint">
-        {view.demo
-          ? "Sample account — pre-filled so you can see a dashboard that's been in use. Your own account is untouched."
-          : "Your account. Sessions, subjects and slots come from what you entered in onboarding; chat and AI recaps arrive with the backend."}
-      </p>
     </DashboardShell>
   );
 }

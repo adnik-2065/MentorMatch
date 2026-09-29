@@ -1,37 +1,42 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ProgressRail, type RailStep } from "./ProgressRail";
-import { ProfileStep, RoleStep, VerifyStep } from "./SharedSteps";
+import { ProfileStep, RoleStep } from "./SharedSteps";
 import { LearnTopicsStep, MatchStep, StuckStep } from "./JuniorSteps";
 import { AvailabilityStep, SkillProofStep, TeachTopicsStep } from "./MentorSteps";
 import { CompleteStep } from "./CompleteStep";
 import { IconArrowLeft } from "@/components/icons";
 import { initialState, type OnboardingState } from "@/lib/onboarding";
+import { loadProfile } from "@/lib/account";
 
 const SHARED: RailStep[] = [
-  { key: "verify", label: "Verify email", hint: "College address + code" },
-  { key: "profile", label: "Your details", hint: "Year, branch, college" },
-  { key: "role", label: "Pick a path", hint: "Learn, mentor, or both" },
+  { key: "role", label: "Choose your path", hint: "Learn or start mentoring" },
+  { key: "profile", label: "Build your profile", hint: "College, year and branch" },
 ];
 
 const JUNIOR: RailStep[] = [
-  { key: "learn", label: "Topics", hint: "What you want to learn" },
-  { key: "stuck", label: "Your problem", hint: "AI finds the concept gap" },
-  { key: "match", label: "Book a session", hint: "Top rated, free soonest" },
-  { key: "done", label: "Done", hint: "You're booked" },
+  { key: "learn", label: "Learning goals", hint: "Choose subjects and skills" },
+  { key: "stuck", label: "Add context", hint: "Describe your current blocker" },
+  { key: "match", label: "Meet your matches", hint: "Compare and book a senior" },
+  { key: "done", label: "You're ready", hint: "Your workspace is prepared" },
 ];
 
 const MENTOR: RailStep[] = [
-  { key: "teach", label: "Topics", hint: "What you can teach" },
-  { key: "proof", label: "SkillProof", hint: "Add GitHub" },
-  { key: "slots", label: "Availability", hint: "10 AM – 10 PM slots" },
-  { key: "done", label: "Done", hint: "You're bookable" },
+  { key: "teach", label: "Teaching profile", hint: "Choose your strongest topics" },
+  { key: "proof", label: "Build trust", hint: "Add optional skill evidence" },
+  { key: "slots", label: "Set availability", hint: "Publish your weekly hours" },
+  { key: "done", label: "You're live", hint: "Your mentor page is ready" },
 ];
 
 export function OnboardingDashboard() {
   const [state, setState] = useState<OnboardingState>(initialState);
   const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const saved = loadProfile();
+    if (saved) setState(saved);
+  }, []);
 
   const patch = (p: Partial<OnboardingState>) => setState((s) => ({ ...s, ...p }));
   const next = () => setStep((s) => s + 1);
@@ -50,8 +55,6 @@ export function OnboardingDashboard() {
 
   const body = () => {
     switch (key) {
-      case "verify":
-        return <VerifyStep state={state} patch={patch} next={next} />;
       case "profile":
         return <ProfileStep state={state} patch={patch} next={next} />;
       case "role":
@@ -77,7 +80,13 @@ export function OnboardingDashboard() {
 
   return (
     <div className="min-h-screen bg-bg">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 py-8 sm:px-6 sm:py-12 lg:flex-row lg:gap-14">
+      <header className="border-b border-line bg-surface/90 backdrop-blur-xl">
+        <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between px-5 sm:px-8">
+          <a href="/" className="font-sans text-base font-semibold text-fg">MentorMatch</a>
+          <span className="rounded-full bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary-text">No verification required · prototype mode</span>
+        </div>
+      </header>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-7 sm:px-8 sm:py-10 lg:flex-row lg:gap-12">
         <ProgressRail
           steps={steps}
           current={Math.min(step, steps.length - 1)}
@@ -85,7 +94,7 @@ export function OnboardingDashboard() {
           role={state.role}
         />
 
-        <main className="min-w-0 flex-1 pb-4">
+        <main className="min-w-0 flex-1 rounded-3xl border border-line bg-surface p-6 shadow-[0_24px_70px_rgb(23_26_43/0.07)] sm:p-9 lg:p-11">
           {/* key forces a remount per step so the fade re-runs on navigation */}
           <div key={key} className="motion-safe:animate-[fadeIn_220ms_ease-out]">
             {body()}
