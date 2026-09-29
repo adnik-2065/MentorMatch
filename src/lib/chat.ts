@@ -34,7 +34,7 @@ export type Thread = {
   role: "student" | "mentor";
   /** Who the composer says you're writing to — a doubt has no one person yet. */
   to: string;
-  kind: "session" | "doubt";
+  kind: "session" | "doubt" | "assistant";
   unread: number;
   seed: ChatMessage[];
 };
@@ -59,10 +59,18 @@ export function loadMessages(account: AccountId, threadId: string): ChatMessage[
   return read()[account]?.[threadId] ?? [];
 }
 
-export function appendMessage(account: AccountId, threadId: string, text: string): ChatMessage {
+export function appendMessage(
+  account: AccountId,
+  threadId: string,
+  text: string,
+  /** The assistant writes into the same store; everything else is you typing. */
+  from: ChatMessage["from"] = "me",
+): ChatMessage {
   const message: ChatMessage = {
-    id: `msg-${Date.now().toString(36)}`,
-    from: "me",
+    // Two messages can land in the same millisecond — you send, the assistant
+    // answers — and React needs the keys to differ.
+    id: `msg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    from,
     text,
     at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
   };
@@ -171,6 +179,38 @@ function ownSeed(session: Session): ChatMessage[] {
   ];
 }
 
+/* -------------------------------- assistant -------------------------------- */
+
+/** Reserved thread id — no session or doubt can collide with it. */
+export const ASSISTANT_ID = "assistant";
+
+/**
+ * The one room with nobody on the other side. It exists because a doubt posted
+ * at 2 AM is answered at 9, and the wait is where juniors give up — so it says
+ * what it is in its first line rather than letting anyone mistake it for a senior.
+ */
+function assistantThread(topics: string[]): Thread {
+  return {
+    id: ASSISTANT_ID,
+    with: "Study buddy",
+    year: "AI",
+    branch: "Always awake",
+    topic: topics[0] ?? "Any subject",
+    concept: "",
+    slot: "Instant",
+    role: "student",
+    to: "the study buddy",
+    kind: "assistant",
+    unread: 0,
+    seed: [
+      system(
+        "assistant-0",
+        "This one is an AI, not a senior. Good for unblocking you right now — for anything that needs someone to read your code or speak from experience, ask a doubt or book a session.",
+      ),
+    ],
+  };
+}
+
 /* --------------------------------- threads --------------------------------- */
 
 function fromSession(session: Session, role: Thread["role"], demo: boolean): Thread {
@@ -239,6 +279,9 @@ function fromAsked(doubt: Doubt): Thread {
  *
  * A session the mentor hasn't accepted yet has no room: there's nobody on the
  * other side to read it, so offering a composer would be a lie.
+ *
+ * The study buddy sits first and is always there — a new account should never
+ * open this page to an empty list.
  */
 export function buildThreads({
   demo,
@@ -246,6 +289,7 @@ export function buildThreads({
   mentoring = [],
   doubts = [],
   asked = [],
+  topics = [],
 }: {
   demo: boolean;
   learning?: Session[];
@@ -253,11 +297,14 @@ export function buildThreads({
   doubts?: Doubt[];
   /** Doubts you asked. In the sample account they also reach your own feed — one room, not two. */
   asked?: Doubt[];
+  /** Subjects you're learning — the assistant room labels itself with the first. */
+  topics?: string[];
 }): Thread[] {
   const accepted = (s: Session) => s.status !== "pending";
   const mine = new Set(asked.map((d) => d.id));
 
   return [
+    assistantThread(topics),
     ...learning.filter(accepted).map((s) => fromSession(s, "student", demo)),
     ...mentoring.filter(accepted).map((s) => fromSession(s, "mentor", demo)),
     ...asked.map(fromAsked),
