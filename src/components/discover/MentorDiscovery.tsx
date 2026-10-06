@@ -36,6 +36,7 @@ export function MentorDiscovery() {
       ? ["Structural Analysis", "AutoCAD", "Engineering Mathematics"]
       : ["Docker", "DSA", "AutoCAD"];
   const [query, setQuery] = useState("");
+  const [queryInput, setQueryInput] = useState("");
   const [activeTopic, setActiveTopic] = useState(topics[0] ?? "");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [onlineOnly, setOnlineOnly] = useState(false);
@@ -46,7 +47,13 @@ export function MentorDiscovery() {
   const [slot, setSlot] = useState<{ day: string; time: string } | null>(null);
   const [booked, setBooked] = useState<Mentor | null>(null);
   const [targetSync, setTargetSync] = useState<string | null>(null);
-  const directory = useMentorDirectory();
+  const directory = useMentorDirectory({
+    query,
+    topics: activeTopic ? [activeTopic] : topics,
+    branch: profile?.branch || (account === "demo" ? "Civil" : ""),
+    targetCompanies,
+    targetRoles,
+  });
 
   useEffect(() => {
     if (!ready) return;
@@ -125,17 +132,26 @@ export function MentorDiscovery() {
           <p className="mt-4 max-w-2xl text-sm leading-6 text-nav-muted sm:text-base">Tell us the exact blocker. We rank mentors using subject fit, branch context, verified evidence, ratings and live availability.</p>
         </div>
 
-        <div className="mt-7 flex max-w-3xl items-center gap-3 rounded-2xl border border-line-strong bg-surface p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.3)]">
+        <form
+          role="search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setQuery(queryInput.trim());
+          }}
+          className="mt-7 flex max-w-3xl items-center gap-3 rounded-2xl border border-line-strong bg-surface p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.3)]"
+        >
           <IconSearch className="ml-3 h-5 w-5 shrink-0 text-faint" />
           <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={queryInput}
+            onChange={(event) => setQueryInput(event.target.value)}
             placeholder="Try: my Docker container exits after startup"
             aria-label="Describe what you need help with"
             className={`min-h-12 min-w-0 flex-1 bg-transparent px-1 text-sm text-fg placeholder:text-faint ${focus}`}
           />
-          <span className="hidden rounded-xl bg-primary px-4 py-3 text-xs font-semibold text-on-primary shadow-[0_6px_16px_rgb(var(--primary-shadow)/0.24)] sm:block">Find matches</span>
-        </div>
+          <button type="submit" className="min-h-11 shrink-0 rounded-xl bg-primary px-4 text-xs font-semibold text-on-primary shadow-[0_6px_16px_rgb(var(--primary-shadow)/0.24)] hover:bg-primary-hover">
+            Find matches
+          </button>
+        </form>
       </section>
 
       {booked && (

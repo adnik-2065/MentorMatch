@@ -891,6 +891,16 @@ const DEFAULT_TRIAGE = {
   related: ["Given vs required", "Assumptions", "Unit consistency", "Sanity checks"],
 };
 
+function normalizeSkillPhrase(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9+#]+/g, " ").trim();
+}
+
+function containsSkillPhrase(text: string, phrase: string) {
+  const normalizedText = normalizeSkillPhrase(text);
+  const normalizedPhrase = normalizeSkillPhrase(phrase);
+  return Boolean(normalizedPhrase) && ` ${normalizedText} `.includes(` ${normalizedPhrase} `);
+}
+
 /** Explainable browser-side ranking shared by onboarding and Discover. */
 function matchMentorsBase(
   { query = "", topics = [], branch = "", verifiedOnly = false, onlineOnly = false }: MatchPreferences,
@@ -900,23 +910,25 @@ function matchMentorsBase(
   const rule = normalizedQuery
     ? TRIAGE_RULES.find((item) => item.match.some((keyword) => normalizedQuery.includes(keyword)))
     : undefined;
-  const requested = [...new Set([...topics, ...(rule?.topic ? [rule.topic] : [])])];
-  const requestedLower = requested.map((topic) => topic.toLowerCase());
   const queryWords = normalizedQuery.split(/\W+/).filter((word) => word.length > 2);
+  const mentorSkills = [...new Set(mentors.flatMap((mentor) => mentor.skills))];
+  const inferredTopics = rule?.topic
+    ? [rule.topic]
+    : mentorSkills.filter((skill) => {
+        if (containsSkillPhrase(normalizedQuery, skill)) return true;
+        const skillWords = normalizeSkillPhrase(skill).split(/\s+/).filter((word) => word.length > 2);
+        return skillWords.some((word) => queryWords.includes(word));
+      });
+  const requested = normalizedQuery
+    ? [...new Set(inferredTopics)]
+    : [...new Set(topics)];
+  const requestedLower = requested.map((topic) => topic.toLowerCase());
 
   return mentors.filter((mentor) => !verifiedOnly || mentor.verified !== "claimed")
     .filter((mentor) => !onlineOnly || mentor.online)
     .map((mentor) => {
       const matchedSkills = mentor.skills.filter((skill) => {
-        const lowerSkill = skill.toLowerCase();
-        return (
-          requestedLower.some(
-            (topic) => lowerSkill === topic || lowerSkill.includes(topic) || topic.includes(lowerSkill),
-          ) ||
-          (normalizedQuery.length > 0 &&
-            (normalizedQuery.includes(lowerSkill) ||
-              queryWords.some((word) => lowerSkill.includes(word))))
-        );
+        return requestedLower.some((topic) => containsSkillPhrase(skill, topic) || containsSkillPhrase(topic, skill));
       });
 
       let score = 24;
@@ -943,6 +955,7 @@ function matchMentorsBase(
         reasons: reasons.slice(0, 3),
       };
     })
+    .filter((match) => !normalizedQuery || match.matchedSkills.length > 0)
     .sort((a, b) => b.score - a.score || b.mentor.rating - a.mentor.rating);
 }
 

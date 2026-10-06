@@ -52,6 +52,27 @@ describe("matchMentors without placement goals", () => {
   });
 });
 
+describe("skill search", () => {
+  it("filters results to the searched skill instead of only changing their scores", () => {
+    const matches = matchMentors({ query: "Java", topics: ["Docker"] });
+
+    expect(matches.length).toBeGreaterThan(0);
+    expect(matches.length).toBeLessThan(MENTORS.length);
+    expect(matches.every(({ matchedSkills }) => matchedSkills.some((skill) => /java/i.test(skill)))).toBe(true);
+  });
+
+  it("uses blocker keywords to find relevant skills rather than the previous focus topic", () => {
+    const matches = matchMentors({ query: "my Docker container exits on startup", topics: ["DSA"] });
+
+    expect(matches.length).toBeGreaterThan(0);
+    expect(matches.every(({ matchedSkills }) => matchedSkills.some((skill) => /docker/i.test(skill)))).toBe(true);
+  });
+
+  it("returns no unrelated mentors when the search has no skill match", () => {
+    expect(matchMentors({ query: "quantum widget repair", topics: ["Docker"] })).toEqual([]);
+  });
+});
+
 describe("company-only search", () => {
   const matches = matchMentors({ topics: ["DSA"], targetCompanies: ["Amazon"] });
 

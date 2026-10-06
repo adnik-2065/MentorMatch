@@ -4,6 +4,7 @@
  * The route files only translate cookies and bodies in and out.
  */
 
+import { matchMentors, type MatchPreferences } from "@/lib/onboarding";
 import { validateProfileInput } from "@/lib/profileValidation";
 import { hashOwnerToken, isOwnerToken, newOwnerToken } from "./ownerToken";
 import type { ProfileStore } from "./profileStore";
@@ -62,10 +63,17 @@ export async function putOwnProfile(
   }
 }
 
-export async function listPublicMentors(store: ProfileStore | null): Promise<ApiResult> {
+export async function listPublicMentors(
+  store: ProfileStore | null,
+  preferences?: MatchPreferences,
+): Promise<ApiResult> {
   if (!store) return NOT_CONFIGURED;
   try {
-    return { status: 200, body: { mentors: await store.listMentors() } };
+    const mentors = await store.listMentors();
+    const results = preferences?.query?.trim()
+      ? matchMentors(preferences, mentors).map((match) => match.mentor)
+      : mentors;
+    return { status: 200, body: { mentors: results } };
   } catch (error) {
     return failure(error);
   }

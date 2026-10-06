@@ -111,6 +111,22 @@ describe("GET /api/mentors", () => {
     expect(top.placement?.tier).toBe("exact");
     expect(top.placement?.explanation).toBe("Worked as Data Scientist at Flipkart (self-reported).");
   });
+
+  it("filters registered mentors by the submitted skill search", async () => {
+    const store = memoryProfileStore();
+    await putOwnProfile(store, undefined, mentorBody);
+    await putOwnProfile(store, undefined, {
+      ...mentorBody,
+      name: "Neha Sharma",
+      teachTopics: ["Docker"],
+    });
+
+    const result = await listPublicMentors(store, { query: "Machine Learning", topics: ["Docker"] });
+    const { mentors } = result.body as { mentors: import("@/lib/onboarding").Mentor[] };
+
+    expect(mentors.map((mentor) => mentor.name)).toEqual(["Ravi S."]);
+    expect(mentors[0].skills).toContain("Machine Learning");
+  });
 });
 
 describe("store failures", () => {
