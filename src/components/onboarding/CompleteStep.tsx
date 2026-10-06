@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, StepHeading } from "@/components/ui";
-import { IconArrowRight, IconCalendar, IconCheck, IconShield } from "@/components/icons";
+import { IconArrowRight, IconCheck, IconHourglass, IconShield } from "@/components/icons";
 import { analyseRepos, type OnboardingState } from "@/lib/onboarding";
 import { saveProfile, syncProfile, type SyncResult } from "@/lib/account";
 import { hasPlacementGoals } from "@/lib/placement";
@@ -120,10 +120,10 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
       )}
 
       {!isMentor && state.booking && (
-        <Card className="border-success/30 bg-success-soft">
-          <Badge tone="success">
-            <IconCalendar className="h-3 w-3" />
-            Session requested
+        <Card className="border-warning/30 bg-warning-soft">
+          <Badge tone="warning">
+            <IconHourglass className="h-3 w-3" />
+            Request sent
           </Badge>
           <p className="mt-3 font-sans text-xl font-semibold text-fg">
             {state.booking.day}, {state.booking.time} · {state.booking.mentor.name}
@@ -131,8 +131,10 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
           <p className="mt-1.5 text-sm text-muted">
             {state.triage?.topic ?? state.learnTopics[0]} — {state.triage?.concept}
           </p>
-          <p className="mt-3 text-xs leading-relaxed text-faint">
-            This prototype saves the booking in your browser and adds it to your dashboard.
+          <p className="mt-3 max-w-[58ch] text-xs leading-relaxed text-faint">
+            {state.booking.mentor.name.split(" ")[0]} has to accept before the session is on. The
+            slot is held for you until then, and the room opens the moment they say yes — it&apos;s
+            on your dashboard either way.
           </p>
         </Card>
       )}
@@ -200,9 +202,9 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
                 "Requests and chat can be connected when the backend is added.",
               ]
             : [
-                "Use Find a mentor to compare transparent match scores.",
-                "Bookings are saved locally and shown on your dashboard.",
-                "Chat, reminders and recaps can be connected later.",
+                "Once the senior accepts, your room opens in chat — before the slot, not at it.",
+                "You'll rate the session afterwards; that unlocks your next booking.",
+                "An AI recap with practice tasks lands in your notes vault.",
               ]
           ).map((line) => (
             <li key={line} className="flex items-start gap-2.5">

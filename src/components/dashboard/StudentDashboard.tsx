@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { Badge, Button, Card, Stars } from "@/components/ui";
 import { DashboardGate, DashboardShell, EmptyState, Section, StatTile } from "./Shell";
+import { SessionCard } from "./SessionCard";
 import { RateSessionCard } from "./RateSessionCard";
+import { RecapVault, type RecapSource } from "./Recaps";
 import { ActivityChart, ProgressRing } from "./ActivityChart";
 import {
   IconArrowRight,
@@ -11,6 +13,7 @@ import {
   IconCheck,
   IconClock,
   IconDot,
+  IconHelp,
   IconMessage,
   IconNote,
   IconShield,
@@ -19,15 +22,17 @@ import {
   IconUsers,
 } from "@/components/icons";
 import { studentView, useAccount } from "@/lib/account";
+import { acceptBooking, cancelBooking } from "@/lib/bookings";
+import { askedLabel, removeDoubt } from "@/lib/doubts";
 
 const focus =
   "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 export function StudentDashboard() {
-  const { ready, account, profile } = useAccount();
-  const view = ready && account ? studentView(account, profile) : null;
+  const { ready, account, profile, bookings, doubts, recaps, refresh } = useAccount();
+  const view = ready && account ? studentView(account, profile, bookings, recaps) : null;
 
-  if (!view) {
+  if (!view || !account) {
     return (
       <DashboardGate
         ready={ready}
@@ -42,18 +47,54 @@ export function StudentDashboard() {
   const [next, ...later] = view.sessions;
   const toRate = view.toRate[0];
   const firstName = view.name.split(" ")[0];
+  const unread = view.sessions.reduce((count, session) => count + session.unread, 0);
+  const awaiting = view.sessions.filter((session) => session.status === "pending").length;
+  const written = new Set(recaps.map((recap) => recap.sessionId));
+  const recapSources: RecapSource[] = [
+    ...[...view.toRate, ...view.sessions.filter((session) => session.status === "completed")].map((session) => ({
+      id: session.id,
+      topic: session.topic,
+      concept: session.concept,
+      label: `Session with ${session.with}`,
+    })),
+    ...doubts.map((doubt) => ({
+      id: doubt.id,
+      topic: doubt.topic,
+      concept: doubt.concept,
+      label: `Doubt you asked about ${doubt.topic}`,
+    })),
+  ].filter((source) => !written.has(source.id));
+  const cancel = (id: string) =>
+    bookings.some((booking) => booking.id === id)
+      ? () => {
+          cancelBooking(account, id);
+          refresh();
+        }
+      : undefined;
+  const accept = (id: string) =>
+    account === "me" && bookings.some((booking) => booking.id === id)
+      ? () => {
+          acceptBooking(account, id);
+          refresh();
+        }
+      : undefined;
 
   return (
-    <DashboardShell role="student" name={view.name} meta={[view.year, view.branch].filter(Boolean).join(" · ")} demo={view.demo}>
+    <DashboardShell role="student" name={view.name} meta={[view.year, view.branch].filter(Boolean).join(" · ")} demo={view.demo} unread={unread}>
       <div className="flex flex-wrap items-end justify-between gap-5">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-text">Overview</p>
           <h1 className="mt-1.5 font-sans text-3xl font-semibold tracking-tight text-fg sm:text-[34px]">Good morning, {firstName}</h1>
           <p className="mt-2 text-sm text-muted">Here&apos;s what&apos;s happening with your learning this week.</p>
         </div>
-        <Link href="/discover" className={`inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-[0_8px_22px_rgb(var(--primary-shadow)/0.22)] transition-all hover:-translate-y-0.5 hover:bg-primary-hover ${focus}`}>
-          <IconSparkle /> Find a mentor <IconArrowRight />
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/ask" className={`inline-flex min-h-11 items-center gap-2 rounded-xl border border-line-strong bg-surface px-4 text-sm font-semibold text-fg hover:bg-inset ${focus}`}>
+            <IconHelp /> Ask a doubt
+          </Link>
+          <Link href="/book" className={`inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-[0_8px_22px_rgb(var(--primary-shadow)/0.22)] transition-all hover:-translate-y-0.5 hover:bg-primary-hover ${focus}`}>
+            <IconSparkle /> Book a session <IconArrowRight />
+          </Link>
+        </div>
       </div>
 
       <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -74,7 +115,9 @@ export function StudentDashboard() {
                   <span className="h-2 w-2 animate-[softPulse_2s_ease-in-out_infinite] rounded-full bg-primary" />
                   <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary-text">Next session</p>
                 </div>
-                <Badge tone="primary">Confirmed</Badge>
+                <Badge tone={next.status === "pending" ? "warning" : "primary"}>
+                  {next.status === "pending" ? "Awaiting confirmation" : "Confirmed"}
+                </Badge>
               </div>
 
               <div className="p-5 sm:p-6">
@@ -93,8 +136,13 @@ export function StudentDashboard() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col">
-                    <Button><IconMessage /> Open session</Button>
-                    <Button variant="ghost">Reschedule</Button>
+                    {next.status !== "pending" && (
+                      <Link href={`/chat?s=${next.id}`} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary ${focus}`}>
+                        <IconMessage /> Open session
+                      </Link>
+                    )}
+                    {cancel(next.id) && <Button variant="ghost" onClick={cancel(next.id)}>Withdraw</Button>}
+                    {accept(next.id) && <Button variant="ghost" onClick={accept(next.id)}>Accept as {firstName}</Button>}
                   </div>
                 </div>
               </div>
@@ -171,21 +219,30 @@ export function StudentDashboard() {
         </div>
       </Section>
 
-      <Section title="Recent session notes">
-        {view.recaps.length === 0 ? (
-          <EmptyState title="Your notes will appear here" body="Session recaps and practice tasks will be available when the backend is connected." />
+      <Section title="Doubts you've asked" action={doubts.length > 0 ? <Link href="/ask" className="text-xs font-bold text-primary-text">Ask another</Link> : undefined}>
+        {doubts.length === 0 ? (
+          <EmptyState title="Nothing asked yet" body="Post a question for seniors in your subject. No booking required." action={<Link href="/ask" className={`inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary ${focus}`}><IconHelp /> Ask a doubt</Link>} />
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {view.recaps.map((recap) => (
-              <Card key={recap.id} className="group">
-                <div className="flex items-center gap-2"><span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft text-primary-text"><IconNote /></span><Badge>{recap.topic}</Badge><span className="ml-auto text-[11px] text-faint">{recap.date}</span></div>
-                <h3 className="mt-4 text-sm font-semibold leading-6 text-fg">{recap.title}</h3>
-                <div className="mt-4 flex items-center justify-between text-xs"><span className="text-faint">Practice progress</span><strong className="text-fg">{recap.done}/{recap.tasks}</strong></div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-inset"><div className="h-full rounded-full bg-primary" style={{ width: `${(recap.done / recap.tasks) * 100}%` }} /></div>
-              </Card>
+          <ul className="space-y-3">
+            {doubts.map((doubt) => (
+              <li key={doubt.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-line bg-surface p-5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2"><Badge>{doubt.topic}</Badge>{doubt.concept && <span className="text-xs text-faint">Gap: {doubt.concept}</span>}<span className="text-xs text-faint">{askedLabel(doubt.at)}</span></div>
+                  <p className="mt-2 max-w-[62ch] text-sm leading-relaxed text-fg">{doubt.text}</p>
+                  <p className="mt-2 text-xs text-faint">Waiting for a senior to pick it up. No slot is being held.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link href={`/chat?s=${doubt.id}`} className={`inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-fg hover:bg-inset ${focus}`}><IconMessage /> Open</Link>
+                  <Button variant="ghost" onClick={() => { removeDoubt(account, doubt.id); refresh(); }}>Withdraw</Button>
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
+      </Section>
+
+      <Section title="Your notes vault">
+        <RecapVault account={account} recaps={view.recaps} sources={recapSources} refresh={refresh} />
       </Section>
     </DashboardShell>
   );

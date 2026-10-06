@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Badge, Button } from "@/components/ui";
-import { IconBolt, IconCalendar, IconCheck, IconSparkle } from "@/components/icons";
+import { IconBolt, IconCalendar, IconCheck, IconMessage, IconSparkle } from "@/components/icons";
 import type { Request } from "@/lib/dashboard";
+
+const focus =
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 type Decision = "accepted" | "declined";
 
@@ -59,16 +63,31 @@ function RequestCard({
         </span>
 
         {decision === "accepted" ? (
-          <Badge tone="success">
-            <IconCheck className="h-3 w-3" />
-            Accepted — chat is open
-          </Badge>
+          <span className="flex flex-wrap items-center gap-3">
+            <Badge tone="success">
+              <IconCheck className="h-3 w-3" />
+              Accepted
+            </Badge>
+            {/* The room only exists once the slot is confirmed — that's what accepting does. */}
+            <Link
+              href={request.bookingId ? `/chat?s=${request.bookingId}` : "/chat"}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-primary-text transition-colors duration-200 hover:bg-inset ${focus}`}
+            >
+              <IconMessage />
+              Open chat
+            </Link>
+          </span>
         ) : decision === "declined" ? (
           <span className="flex flex-wrap items-center gap-3 text-sm text-faint">
-            Declined — sent back to the queue
-            <Button variant="ghost" onClick={() => onDecide("accepted")}>
-              Undo
-            </Button>
+            {request.bookingId
+              ? "Declined — the slot went back to the junior"
+              : "Declined — sent back to the queue"}
+            {/* A declined booking is gone from the store, so there's nothing to undo. */}
+            {!request.bookingId && (
+              <Button variant="ghost" onClick={() => onDecide("accepted")}>
+                Undo
+              </Button>
+            )}
           </span>
         ) : (
           <div className="ml-auto flex flex-wrap gap-2">
@@ -83,7 +102,18 @@ function RequestCard({
   );
 }
 
-export function RequestInbox({ requests }: { requests: Request[] }) {
+/**
+ * `onDecide` is where a decision on a real booking is written back — accepting
+ * confirms the slot and opens the room, declining gives it up. The seeded
+ * requests have no booking behind them, so for those it's local state only.
+ */
+export function RequestInbox({
+  requests,
+  onDecide,
+}: {
+  requests: Request[];
+  onDecide?: (request: Request, decision: Decision) => void;
+}) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const pending = requests.filter((r) => !decisions[r.id]).length;
 
@@ -99,7 +129,10 @@ export function RequestInbox({ requests }: { requests: Request[] }) {
             key={request.id}
             request={request}
             decision={decisions[request.id]}
-            onDecide={(decision) => setDecisions((d) => ({ ...d, [request.id]: decision }))}
+            onDecide={(decision) => {
+              setDecisions((d) => ({ ...d, [request.id]: decision }));
+              onDecide?.(request, decision);
+            }}
           />
         ))}
       </ul>
