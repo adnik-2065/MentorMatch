@@ -10,7 +10,6 @@ import { StepActions, type StepNav } from "./StepActions";
 import { IconDot, IconShield, IconSparkle } from "@/components/icons";
 import {
   matchMentors,
-  runTriage,
   TARGET_COMPANIES,
   TARGET_JOB_ROLES,
   type MentorMatch,

@@ -471,7 +471,7 @@ The Postgres test applies the schema and **truncates** `profiles`, so point it a
 - No real authentication yet: the owner cookie ties a profile to one browser.
 - Session requests/bookings are still stored in the browser only.
 - Mentor company and position experience is self-reported and labelled that way everywhere; there's no employment verification.
-- SkillProof analysis and the "stuck on" triage are rules-based placeholders, not AI.
+- SkillProof analysis is a rules-based placeholder, not AI. Doubt triage and session recaps do call Gemini, and fall back to offline rules without a key.
 - Sample mentors are bundled demo data and are labelled "Sample profile". Their company and position entries are separate, so nothing claims they held a specific role at a specific company.
 - Newly registered mentors show "New mentor" with no rating until real reviews exist.
 
@@ -525,7 +525,7 @@ MentorMatch/
 │   │   ├── recaps.ts          # ✅ per-account recap store + practice ticks
 │   │   ├── chat.ts            # ✅ threads from sessions, doubts + the AI room
 │   │   ├── triage-client.ts   # ✅ browser API calls with offline fallbacks
-│   │   ├── ai/                # server only — the key never leaves this folder
+│   │   └── ai/                # server only — the key never leaves this folder
 │   │       ├── gemini.ts      # ✅ fetch, JSON + free text, model fallback chain
 │   │       ├── triage.ts      # ✅ concept gap from a doubt
 │   │       ├── recap.ts       # ✅ recap + next steps from a room
