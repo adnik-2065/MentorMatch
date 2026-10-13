@@ -103,12 +103,15 @@ Seniors stop answering the same question 40 times. Juniors get unblocked at midn
 
 Both roles start by choosing a workspace, then adding their college, year, and branch. From there the paths split, and either side can be added later: the same account can learn and mentor. **The current prototype intentionally skips email OTP verification** so onboarding, matching, and dashboard UX can be developed first.
 
+The college email field is optional, but **restricted to institutional domains** when it's filled: anything ending in `.ac.in`, `.edu.in`, `.res.in` or `.edu`, plus `ac.<cc>`/`edu.<cc>` for institutions outside India (`ox.ac.uk`, `unimelb.edu.au`). Consumer mailboxes are named in the rejection — *"a gmail.com account doesn't say which campus you're on"* — rather than failing with a generic message. The rule lives in `src/lib/collegeEmail.ts` and is checked on blur as well as on Continue, because "only college domains" isn't a rule anyone guesses. It's a format gate, not proof of ownership: that's the OTP step, and it isn't built yet.
+
 ### 🎓 Junior — "I need help" · ~2 minutes
 
 | # | Step | Required? | What it does |
 |---|------|-----------|--------------|
 | 1 | Choose your path | Yes | Learner or mentor workspace |
 | 2 | About you — name, college, year, branch | Yes | Branch decides which subjects and seniors come first |
+| — | College email | Optional | Institutional domains only (`.ac.in`, `.edu.in`, `.res.in`, `.edu`) when filled |
 | 3 | Subjects you want help with | Yes (≥ 1) | Drives topic matching |
 | 4 | **Placement goals** — target companies, target positions, season, prep topics | Optional, skippable | Mentors whose *self-reported* experience matches more goals are suggested first |
 | 5 | What you're stuck on right now | Optional, skippable | Rules-based triage names the likely concept gap |
@@ -144,7 +147,7 @@ Every step has **Back** and **Continue**; optional steps show **Skip** while the
 ### 👤 Accounts & Profiles
 
 - **Dual roles** — one account, both hats. A second-year can mentor in C and be mentored in DSA at the same time.
-- **College email verification** — keeps the platform scoped to real students on real campuses.
+- **College email verification** — keeps the platform scoped to real students on real campuses. The domain restriction is in (`src/lib/collegeEmail.ts`); OTP delivery is not.
 - Profile: year, branch, college, bio, availability, languages spoken, mentoring style (patient explainer / fast tracker / project-based).
 - **Verified skill badges** via SkillProof (see above) + self-declared "learning now" topics.
 - Public mentor page with stats: sessions held, topics covered, average rating, response time.
@@ -388,8 +391,10 @@ The sample accounts exist so the dashboards can be demoed with a full week of da
 
 Two ways to see the other half of that, since no server can deliver a reply yet:
 
-- **Sample account** — you're Meera on the mentoring side, so slots you take from her land in your own *Session requests* inbox. Accept one there and the room appears. This is the real flow.
-- **Your own account** — the pending card carries an *Accept as \<mentor\>* button, labelled as the stand-in it is. It calls the same `acceptBooking()` the inbox does.
+- **Sample account** — you're Meera on the mentoring side, so slots you take from her land in your own *Session requests* inbox. The pending card on `/dashboard` links straight to it (*"Accept it as Meera"*), because the reply lives behind the role switch and nobody finds it otherwise. Accept one there and the room appears. This is the real flow.
+- **Your own account, or a sample booking with anyone but Meera** — nothing will ever reach an inbox, so the pending card carries an *Accept as \<mentor\>* button, labelled as the stand-in it is. It calls the same `acceptBooking()` the inbox does.
+
+Both sample cards on `/signin` enter the **same** workspace — they only differ in which dashboard you land on. They used to be separate accounts with separate booking stores, which meant a slot taken from Meera as the junior went into a bucket her inbox never read. Anything saved under the old `demo-student` / `demo-mentor` keys is folded in on first load.
 
 **Chat** — one room per *accepted* session and one per doubt, listed for both hats at once (`Learning` / `Mentoring`). Session rooms open before the slot and stay open after it; doubt rooms are open from the moment you post. A doubt you asked is one room, not two, even in the sample account where you're on both ends of it. `Enter` sends, `Shift+Enter` breaks the line, and the room deep-links as `/chat?s=<session or doubt id>`.
 
@@ -518,6 +523,7 @@ MentorMatch/
 │   │   └── chat/              # ✅ room list, transcript, composer, AI room
 │   ├── lib/
 │   │   ├── onboarding.ts      # ✅ branch subjects, mock mentors, offline triage
+│   │   ├── collegeEmail.ts    # ✅ institutional domains only (.ac.in, .edu.in…)
 │   │   ├── account.ts         # ✅ stored profile → dashboard view (or sample)
 │   │   ├── dashboard.ts       # ✅ sample sessions, requests, doubts, recaps
 │   │   ├── bookings.ts        # ✅ per-account booking store + slot conflicts
@@ -548,7 +554,8 @@ MentorMatch/
 - [x] Student and mentor dashboards, driven by your own onboarding profile
 - [x] Account switcher with two sample accounts for demos
 - [x] Postgres schema + setup (`db/schema.sql`, `npm run db:migrate`)
-- [ ] Auth + college email verification
+- [x] College email domain restriction (`.ac.in`, `.edu.in`, `.res.in`, `.edu`)
+- [ ] Auth + college email OTP verification
 - [ ] Profiles with self-declared skills
 - [x] Client-side mentor discovery with explainable matching, filters, and booking
 - [x] Placement goals (companies, positions, season) + rules-based placement matching

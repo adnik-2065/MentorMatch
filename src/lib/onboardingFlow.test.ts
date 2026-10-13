@@ -57,6 +57,13 @@ describe("flowReducer", () => {
     expect(flowReducer(atLearn, { type: "skip", state: student })).toBe(atLearn);
   });
 
+  it("keeps the college email optional but restricted to institutional domains", () => {
+    expect(stepErrors("profile", student)).toEqual({});
+    expect(stepErrors("profile", { ...student, email: "asha@iitb.ac.in" })).toEqual({});
+    expect(stepErrors("profile", { ...student, email: "asha@gmail.com" }).email).toBeTruthy();
+    expect(stepErrors("profile", { ...student, email: "asha@mycollege.com" }).email).toBeTruthy();
+  });
+
   it("validates the optional blocker only when something was typed", () => {
     expect(stepErrors("stuck", student)).toEqual({});
     expect(stepErrors("stuck", { ...student, stuckOn: "docker" }).stuckOn).toBeTruthy();

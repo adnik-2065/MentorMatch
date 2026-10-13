@@ -17,7 +17,9 @@ export function TriageCard({ triage, className = "" }: { triage: Triage; classNa
   return (
     <div
       className={`rounded-lg border border-primary/25 bg-primary-soft/50 p-4 ${className}`}
-      aria-live="polite"
+      // role rather than aria-live: the card is mounted when the answer arrives,
+      // and a live region that appears with its content isn't always announced.
+      role="status"
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="primary">

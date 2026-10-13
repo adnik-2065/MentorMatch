@@ -1,19 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/Shell";
 import { PlacementTargetField } from "@/components/PlacementTargetField";
 import { Badge, Button, Stars } from "@/components/ui";
 import {
+  IconArrowRight,
   IconCalendar,
   IconCheck,
   IconClock,
   IconDot,
+  IconHourglass,
   IconSearch,
   IconSliders,
 } from "@/components/icons";
 import { ExperienceList, MentorSourceBadges, PlacementBadge } from "@/components/MentorExperience";
-import { loadProfile, saveProfile, syncProfile, useAccount } from "@/lib/account";
+import { saveProfile, syncProfile, useAccount } from "@/lib/account";
+import { profileStrength } from "@/lib/activity";
+import { addBooking, isSlotTaken, slotsOf } from "@/lib/bookings";
 import { useMentorDirectory } from "@/lib/mentorDirectory";
 import {
   matchMentors,
@@ -21,18 +26,16 @@ import {
   TARGET_JOB_ROLES,
   type Mentor,
 } from "@/lib/onboarding";
-
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { focusRing as focus } from "@/lib/focus";
 
 type Sort = "match" | "rating" | "available";
 
 export function MentorDiscovery() {
-  const { ready, account, profile } = useAccount();
+  const { ready, account, profile, bookings, refresh } = useAccount();
   const role = profile?.role === "mentor" ? "mentor" : "student";
   const topics = profile?.learnTopics.length
     ? profile.learnTopics
-    : account === "demo"
+    : account?.startsWith("demo") ?? false
       ? ["Structural Analysis", "AutoCAD", "Engineering Mathematics"]
       : ["Docker", "DSA", "AutoCAD"];
   const [query, setQuery] = useState("");
@@ -45,12 +48,16 @@ export function MentorDiscovery() {
   const [sort, setSort] = useState<Sort>("match");
   const [selected, setSelected] = useState<Mentor | null>(null);
   const [slot, setSlot] = useState<{ day: string; time: string } | null>(null);
-  const [booked, setBooked] = useState<Mentor | null>(null);
+  const [justAskedId, setJustAskedId] = useState<string | null>(null);
   const [targetSync, setTargetSync] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Where focus was before the dialog opened, so Escape doesn't dump the user
+  // back at the top of the page.
+  const opener = useRef<HTMLElement | null>(null);
   const directory = useMentorDirectory({
     query,
     topics: activeTopic ? [activeTopic] : topics,
-    branch: profile?.branch || (account === "demo" ? "Civil" : ""),
+    branch: profile?.branch || (account?.startsWith("demo") ?? false ? "Civil" : ""),
     targetCompanies,
     targetRoles,
   });
@@ -60,6 +67,28 @@ export function MentorDiscovery() {
     setTargetCompanies(profile?.targetCompanies ?? []);
     setTargetRoles(profile?.targetRoles ?? []);
   }, [account, profile, ready]);
+
+  const closeDialog = useCallback(() => {
+    setSelected(null);
+    setSlot(null);
+    opener.current?.focus();
+  }, []);
+
+  // A modal has to answer Escape, hold focus and stop the page behind it scrolling.
+  useEffect(() => {
+    if (!selected) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeDialog();
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    dialogRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selected, closeDialog]);
 
   const updatePlacementTargets = (companies: string[], roles: string[]) => {
     setTargetCompanies(companies);
@@ -84,7 +113,7 @@ export function MentorDiscovery() {
     const ranked = matchMentors({
       query,
       topics: activeTopic ? [activeTopic] : topics,
-      branch: profile?.branch || (account === "demo" ? "Civil" : ""),
+      branch: profile?.branch || (account?.startsWith("demo") ?? false ? "Civil" : ""),
       verifiedOnly,
       onlineOnly,
       targetCompanies,
@@ -100,15 +129,30 @@ export function MentorDiscovery() {
     ? matches.filter((match) => match.placement?.tier === "exact").length
     : 0;
 
+  const pending = bookings.filter((booking) => booking.status === "pending");
+
   const confirmBooking = () => {
-    if (!selected || !slot) return;
-    if (account === "me") {
-      const current = loadProfile();
-      if (current) saveProfile({ ...current, booking: { mentor: selected, ...slot } });
-    }
-    setBooked(selected);
+    if (!selected || !slot || !account) return;
+    if (isSlotTaken(bookings, selected.id, slot.day, slot.time)) return;
+    // Not `profile.booking` — that field is onboarding's hand-off, and
+    // `adoptOnboardingBooking` would turn a write here into a second request.
+    // The same store the booking page and both dashboards read, so a session
+    // asked for here shows up everywhere instead of only closing this dialog.
+    const booked = addBooking(account, {
+      mentorId: selected.id,
+      mentorName: selected.name,
+      year: selected.year,
+      branch: selected.branch,
+      topic: selected.skills.find((skill) => topics.includes(skill)) ?? activeTopic ?? selected.skills[0],
+      concept: "",
+      day: slot.day,
+      time: slot.time,
+      length: "45 min",
+    });
+    setJustAskedId(booked.id);
     setSelected(null);
     setSlot(null);
+    refresh();
   };
 
   if (!ready) {
@@ -118,10 +162,11 @@ export function MentorDiscovery() {
   return (
     <DashboardShell
       role={role}
-      name={profile?.name.trim() || (account === "demo" ? "Aditya N." : "Guest")}
-      meta={[profile?.year, profile?.branch].filter(Boolean).join(" · ") || (account === "demo" ? "2nd Year · Civil" : "Explore mentors")}
-      demo={account === "demo"}
+      name={profile?.name.trim() || (account?.startsWith("demo") ?? false ? "Aditya N." : "Guest")}
+      meta={[profile?.year, profile?.branch].filter(Boolean).join(" · ") || (account?.startsWith("demo") ?? false ? "2nd Year · Civil" : "Explore mentors")}
+      demo={account?.startsWith("demo") ?? false}
       active="discover"
+      profileStrength={account === "me" && profile ? profileStrength(profile) : undefined}
     >
       <section className="relative isolate overflow-hidden rounded-[28px] border border-white/8 bg-nav px-6 py-8 text-white shadow-[0_24px_70px_rgb(16_25_21/0.18)] sm:px-9 sm:py-10">
         <div aria-hidden="true" className="absolute -right-20 -top-36 -z-10 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
@@ -154,10 +199,29 @@ export function MentorDiscovery() {
         </form>
       </section>
 
-      {booked && (
-        <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-success/20 bg-success-soft px-5 py-4 text-sm text-success">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-success text-white"><IconCheck /></span>
-          <span>Session requested with <strong>{booked.name}</strong>. It&apos;s saved in this browser and shown on your dashboard.</span>
+      {pending.length > 0 && (
+        <div className="mt-5 rounded-2xl border border-warning/25 bg-warning-soft px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-warning/30 text-warning"><IconHourglass className="h-4 w-4" /></span>
+            <p className="text-sm font-semibold text-fg">
+              {justAskedId
+                ? "Request sent — you've already booked a session"
+                : `You've already booked ${pending.length === 1 ? "a session" : `${pending.length} sessions`}`}
+            </p>
+          </div>
+          <p className="mt-2 max-w-[62ch] text-sm leading-relaxed text-muted">
+            {pending.length === 1
+              ? `${pending[0].mentorName} hasn't accepted yet, so it's still pending — the slot (${pending[0].day}, ${pending[0].time}) is held for you until they do.`
+              : `${pending.length} requests are still pending — none of the seniors have accepted yet, and every slot stays held until they do.`}{" "}
+            Booking another session below is fine.
+          </p>
+          <Link
+            href="/book"
+            className={`mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-fg transition-colors hover:bg-inset ${focus}`}
+          >
+            See your requests
+            <IconArrowRight />
+          </Link>
         </div>
       )}
 
@@ -167,7 +231,6 @@ export function MentorDiscovery() {
             <div className="flex items-center gap-3 border-b border-line pb-4">
               <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary-soft text-primary-text"><IconSliders className="h-4 w-4" /></span>
               <div><p className="text-sm font-semibold text-fg">Match preferences</p><p className="mt-0.5 text-[11px] text-faint">Tune recommendations</p></div>
-              <span className="sr-only">Personalized filters</span>
             </div>
             <div className="mt-5">
               <label htmlFor="focus-topic" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">Focus topic</label>
@@ -186,12 +249,9 @@ export function MentorDiscovery() {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary-text">Currently matching</p>
                 <p className="mt-1 truncate text-xs font-medium text-fg" title={activeTopic}>{activeTopic}</p>
               </div>
-              <p className="mt-2 text-[11px] leading-4 text-faint">{topics.length} profile topics available</p>
-              <div className="hidden">
-                {topics.map((topic) => (
-                  <button key={topic} type="button" onClick={() => setActiveTopic(topic)} className={`rounded-lg border px-2.5 py-2 text-xs font-medium transition-all ${focus} ${activeTopic === topic ? "border-primary/35 bg-primary-soft text-primary-text shadow-[inset_0_0_0_1px_rgb(var(--primary-shadow)/0.08)]" : "border-line bg-surface text-muted hover:border-primary/30 hover:bg-inset/50"}`}>{topic}</button>
-                ))}
-              </div>
+              <p className="mt-2 text-[11px] leading-4 text-faint">
+                {topics.length === 1 ? "1 subject on your profile" : `${topics.length} subjects on your profile`}
+              </p>
             </div>
             <div className="mt-5 space-y-5 border-t border-line pt-5">
               <div>
@@ -270,7 +330,11 @@ export function MentorDiscovery() {
           )}
 
           <div className="space-y-3.5">
-            {matches.map(({ mentor, score, matchedSkills, placement, reasons }, index) => (
+            {matches.map(({ mentor, score, matchedSkills, placement, reasons }, index) => {
+              const asked = pending.filter((booking) => booking.mentorId === mentor.id);
+              // Offering a slot you are already holding only leads to a dead dialog.
+              const nextFree = slotsOf(mentor, bookings).find((item) => !item.taken);
+              return (
               <article key={mentor.id} className={`group relative overflow-hidden rounded-[20px] border bg-surface p-5 shadow-[0_8px_30px_rgb(16_25_21/0.035)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_44px_rgb(16_25_21/0.075)] sm:p-6 ${index === 0 ? "border-primary/30" : "border-line"}`}>
                 {index === 0 && <div aria-hidden="true" className="absolute inset-y-5 left-0 w-0.5 rounded-r-full bg-primary" />}
                 <div className="flex flex-col gap-5 sm:flex-row">
@@ -316,33 +380,61 @@ export function MentorDiscovery() {
                     </div>
 
                     <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">
-                      <p className="flex items-center gap-2 text-xs text-faint"><IconCalendar className="h-4 w-4" /> Next available <strong className="font-semibold text-fg">{mentor.slots[0].day}, {mentor.slots[0].time}</strong></p>
+                      {asked.length > 0 ? (
+                        <p className="flex items-center gap-2 text-xs text-warning"><IconHourglass className="h-4 w-4" /> Requested <strong className="font-semibold">{asked[0].day}, {asked[0].time}</strong> · awaiting confirmation</p>
+                      ) : (
+                        <p className="flex items-center gap-2 text-xs text-faint"><IconCalendar className="h-4 w-4" /> Next available <strong className="font-semibold text-fg">{nextFree?.day ?? mentor.slots[0].day}, {nextFree?.time ?? mentor.slots[0].time}</strong></p>
+                      )}
                       <div className="ml-auto flex gap-2">
-                        <Button onClick={() => { setSelected(mentor); setSlot(mentor.slots[0]); }}>Book session</Button>
+                        <Button
+                          variant={asked.length > 0 ? "outline" : "primary"}
+                          disabled={!nextFree}
+                          onClick={(event) => {
+                            opener.current = event.currentTarget;
+                            setSelected(mentor);
+                            setSlot(nextFree ?? null);
+                          }}
+                        >
+                          {!nextFree ? "No slots left" : asked.length > 0 ? "Book another slot" : "Book session"}
+                        </Button>
                       </div>
                     </div>
                   </div>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>
 
       {selected && (
-        <div role="dialog" aria-modal="true" aria-labelledby="booking-title" className="fixed inset-0 z-50 flex items-end justify-center bg-nav/55 p-4 backdrop-blur-sm sm:items-center">
-          <div className="w-full max-w-lg rounded-3xl bg-surface p-6 shadow-2xl sm:p-7">
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-nav/55 p-4 backdrop-blur-sm sm:items-center"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeDialog();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="booking-title"
+            ref={dialogRef}
+            tabIndex={-1}
+            className="w-full max-w-lg rounded-3xl bg-surface p-6 shadow-2xl outline-none sm:p-7"
+          >
             <div className="flex items-start justify-between gap-4">
-              <div><p className="text-xs font-semibold uppercase tracking-wider text-primary-text">Confirm session</p><h2 id="booking-title" className="mt-1 font-sans text-2xl font-semibold">Book {selected.name}</h2><p className="mt-1 text-sm text-muted">Choose one of their next available slots.</p></div>
-              <button type="button" onClick={() => setSelected(null)} className={`rounded-lg px-2 py-1 text-sm text-faint hover:bg-inset ${focus}`}>Close</button>
+              <div><p className="text-xs font-semibold uppercase tracking-wider text-primary-text">Confirm session</p><h2 id="booking-title" className="mt-1 font-sans text-2xl font-semibold">Book {selected.name}</h2><p className="mt-1 text-sm text-muted">{pending.some((booking) => booking.mentorId === selected.id) ? "You already have a request with them waiting. Pick another slot and we'll ask for both." : "Choose one of their next available slots."}</p></div>
+              <button type="button" onClick={closeDialog} aria-label="Close booking dialog" className={`rounded-lg px-2 py-1 text-sm text-faint hover:bg-inset ${focus}`}>Close</button>
             </div>
             <div className="mt-6 grid gap-2 sm:grid-cols-2">
               {selected.slots.map((item) => {
                 const active = slot?.day === item.day && slot.time === item.time;
-                return <button key={`${item.day}-${item.time}`} type="button" onClick={() => setSlot(item)} className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 text-left text-sm transition-colors ${focus} ${active ? "border-primary bg-primary-soft text-primary-text" : "border-line hover:border-primary/30"}`}><IconClock /><span><strong>{item.day}</strong><span className="ml-1 text-faint">· {item.time}</span></span>{active && <IconCheck className="ml-auto" />}</button>;
+                const taken = isSlotTaken(bookings, selected.id, item.day, item.time);
+                return <button key={`${item.day}-${item.time}`} type="button" disabled={taken} onClick={() => setSlot(item)} className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 text-left text-sm transition-colors ${focus} ${taken ? "cursor-not-allowed border-line bg-inset/60 text-faint" : active ? "border-primary bg-primary-soft text-primary-text" : "border-line hover:border-primary/30"}`}><IconClock /><span><strong>{item.day}</strong><span className="ml-1 text-faint">· {item.time}</span>{taken && <span className="ml-1 text-faint">· already requested</span>}</span>{active && !taken && <IconCheck className="ml-auto" />}</button>;
               })}
             </div>
-            <div className="mt-6 flex justify-end gap-3"><Button variant="ghost" onClick={() => setSelected(null)}>Cancel</Button><Button disabled={!slot} onClick={confirmBooking}>Confirm booking</Button></div>
+            <div className="mt-6 flex justify-end gap-3"><Button variant="ghost" onClick={closeDialog}>Cancel</Button><Button disabled={!slot} onClick={confirmBooking}>Confirm booking</Button></div>
           </div>
         </div>
       )}

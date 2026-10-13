@@ -5,9 +5,7 @@ import Link from "next/link";
 import { Badge, Button } from "@/components/ui";
 import { IconBolt, IconCalendar, IconCheck, IconMessage, IconSparkle } from "@/components/icons";
 import type { Request } from "@/lib/dashboard";
-
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { focusRing as focus } from "@/lib/focus";
 
 type Decision = "accepted" | "declined";
 
@@ -70,7 +68,7 @@ function RequestCard({
             </Badge>
             {/* The room only exists once the slot is confirmed — that's what accepting does. */}
             <Link
-              href={request.bookingId ? `/chat?s=${request.bookingId}` : "/chat"}
+              href={request.bookingId ? `/chat?s=${request.bookingId}&as=mentor` : "/chat"}
               className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-primary-text transition-colors duration-200 hover:bg-inset ${focus}`}
             >
               <IconMessage />
@@ -120,7 +118,7 @@ export function RequestInbox({
   return (
     <>
       <p aria-live="polite" className="sr-only">
-        {pending} requests waiting
+        {pending === 1 ? "1 request waiting" : `${pending} requests waiting`}
       </p>
 
       <ul className="space-y-3">

@@ -4,9 +4,7 @@ import Link from "next/link";
 import { Badge, Button } from "@/components/ui";
 import { IconClock, IconHourglass, IconMessage } from "@/components/icons";
 import type { Session } from "@/lib/dashboard";
-
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { focusRing as focus } from "@/lib/focus";
 
 /**
  * One booked session. `perspective` only changes the wording — a junior sees
@@ -73,7 +71,7 @@ export function SessionCard({
         <div className="flex flex-wrap gap-2">
           {!pending && (
             <Link
-              href={`/chat?s=${session.id}`}
+              href={`/chat?s=${session.id}&as=${perspective}`}
               className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-5 text-sm font-medium transition-colors duration-200 ${focus} ${
                 featured
                   ? "bg-primary text-on-primary hover:bg-primary-hover"

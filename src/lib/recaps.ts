@@ -45,6 +45,23 @@ export function loadRecaps(account: AccountId): StoredRecap[] {
   return read()[account] ?? [];
 }
 
+/** See `moveAccount` in `bookings.ts` — the same one-off sample-account merge. */
+export function moveAccount(from: AccountId, to: AccountId) {
+  const store = read();
+  const moving = store[from];
+  if (!moving?.length) {
+    if (store[from]) write({ ...store, [from]: undefined });
+    return;
+  }
+  const kept = store[to] ?? [];
+  const ids = new Set(kept.map((r) => r.id));
+  write({
+    ...store,
+    [to]: [...kept, ...moving.filter((r) => !ids.has(r.id))].sort((a, b) => b.at - a.at),
+    [from]: undefined,
+  });
+}
+
 /** "Just now" is wrong by tomorrow, so recaps carry the date they were written. */
 function today(at: number): string {
   return new Date(at).toLocaleDateString("en-IN", { day: "numeric", month: "short" });

@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui";
 import { IconArrowRight, IconGraduation, IconSparkle, IconTeach } from "@/components/icons";
-import { signIn, useAccount } from "@/lib/account";
-
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { DEMO_ACCOUNT, signIn, useAccount, type AccountId } from "@/lib/account";
+import { focusRing as focus } from "@/lib/focus";
 
 const card =
   "group block w-full cursor-pointer rounded-xl border border-line bg-surface p-5 text-left transition-colors duration-200 hover:border-primary hover:bg-primary-soft/40";
@@ -16,7 +14,7 @@ export function SignIn() {
   const router = useRouter();
   const { ready, profile } = useAccount();
 
-  const enter = (id: "me" | "demo", href: string) => {
+  const enter = (id: AccountId, href: string) => {
     signIn(id);
     router.push(href);
   };
@@ -24,7 +22,7 @@ export function SignIn() {
   const ownHref = profile?.role === "mentor" ? "/mentor" : "/dashboard";
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-5 py-16 sm:px-6 sm:py-24">
+    <main id="main-content" className="mx-auto w-full max-w-2xl px-5 py-16 sm:px-6 sm:py-24">
       <Link
         href="/"
         className={`text-sm font-medium tracking-wide text-primary-text uppercase ${focus} rounded-md`}
@@ -87,7 +85,7 @@ export function SignIn() {
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => enter("demo", "/dashboard")}
+              onClick={() => enter(DEMO_ACCOUNT, "/dashboard")}
               className={`${card} ${focus}`}
             >
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-inset text-muted">
@@ -100,7 +98,7 @@ export function SignIn() {
 
             <button
               type="button"
-              onClick={() => enter("demo", "/mentor")}
+              onClick={() => enter(DEMO_ACCOUNT, "/mentor")}
               className={`${card} ${focus}`}
             >
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-inset text-muted">
@@ -119,7 +117,7 @@ export function SignIn() {
           <IconSparkle className="h-3.5 w-3.5" />
         </span>
         Accounts live in this browser only — no server, no password. Real auth is college email +
-        OTP, which is already wired into onboarding.
+        OTP, and it isn&apos;t built yet, which is why this picker exists.
       </p>
     </main>
   );

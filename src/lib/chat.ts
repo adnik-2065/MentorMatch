@@ -59,6 +59,30 @@ export function loadMessages(account: AccountId, threadId: string): ChatMessage[
   return read()[account]?.[threadId] ?? [];
 }
 
+/**
+ * See `moveAccount` in `bookings.ts`. Rooms are keyed by thread id, and the two
+ * sample hats were never in the same room twice, so `from` wins on a collision
+ * only when the target room is empty.
+ */
+export function moveAccount(from: AccountId, to: AccountId) {
+  const store = read();
+  const moving = store[from];
+  if (!moving) return;
+
+  const kept = store[to] ?? {};
+  const merged: Record<string, ChatMessage[]> = { ...kept };
+  for (const [threadId, messages] of Object.entries(moving)) {
+    if (!merged[threadId]?.length) merged[threadId] = messages;
+  }
+
+  const next: Store = { ...store, [to]: merged, [from]: undefined };
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(next));
+  } catch {
+    // Quota or private mode — the old rooms just stay where they are.
+  }
+}
+
 export function appendMessage(
   account: AccountId,
   threadId: string,

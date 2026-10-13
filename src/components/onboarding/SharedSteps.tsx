@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Card, ChoiceGroup, Input, StepHeading } from "@/components/ui";
+import { Badge, Card, ChoiceGroup, Input, StepHeading } from "@/components/ui";
 import { StepActions, type StepNav } from "./StepActions";
-import { IconArrowRight, IconGraduation, IconSparkle, IconTeach } from "@/components/icons";
+import { IconCheck, IconGraduation, IconSparkle, IconTeach } from "@/components/icons";
+import { collegeEmailError, collegeSuffixList, isCollegeEmail } from "@/lib/collegeEmail";
+import { focusRing } from "@/lib/focus";
 import { BRANCHES, YEARS, type OnboardingState, type Role } from "@/lib/onboarding";
 
 type Patch = (patch: Partial<OnboardingState>) => void;
@@ -23,7 +25,7 @@ function OptionButton({
       role="radio"
       aria-checked={selected}
       onClick={onClick}
-      className={`inline-flex min-h-11 cursor-pointer items-center rounded-lg border px-4 text-sm transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
+      className={`inline-flex min-h-11 cursor-pointer items-center rounded-lg border px-4 text-sm transition-colors duration-200 ${focusRing} ${
         selected
           ? "border-primary bg-primary-soft font-medium text-primary-text"
           : "border-line bg-surface text-muted hover:border-line-strong hover:text-fg"
@@ -31,95 +33,6 @@ function OptionButton({
     >
       {label}
     </button>
-  );
-}
-
-export function VerifyStep({
-  state,
-  patch,
-  next,
-}: {
-  state: OnboardingState;
-  patch: Patch;
-  next: () => void;
-}) {
-  const [sent, setSent] = useState(state.verified);
-  const [touched, setTouched] = useState(false);
-  const email = state.email.trim();
-  const isCollegeMail = /\.(edu|ac)\.[a-z]{2,}$|\.edu$/i.test(email);
-  const showError = touched && email.length > 0 && !isCollegeMail;
-
-  return (
-    <div className="space-y-7">
-      <StepHeading
-        title="Verify your college email"
-        subtitle="This keeps MentorMatch scoped to real students on real campuses — it's the only gate on the whole platform."
-      />
-
-      <div className="space-y-1.5">
-        <Input
-          id="college-email"
-          type="email"
-          label="College email"
-          hint="Your institute address, e.g. you@college.ac.in"
-          value={state.email}
-          placeholder="you@college.ac.in"
-          aria-invalid={showError}
-          onBlur={() => setTouched(true)}
-          onChange={(e) => patch({ email: e.target.value, verified: false })}
-        />
-        {showError && (
-          <p role="alert" className="text-xs font-medium text-danger">
-            That doesn&apos;t look like a college address — it should end in .ac.in or .edu
-          </p>
-        )}
-      </div>
-
-      {!sent ? (
-        <Button disabled={!isCollegeMail} onClick={() => setSent(true)}>
-          Send code
-          <IconArrowRight />
-        </Button>
-      ) : (
-        <div className="space-y-5">
-          <Card className="bg-inset">
-            <p className="text-sm text-muted">
-              We sent a 6-digit code to <span className="font-medium text-fg">{email}</span>.
-            </p>
-            <p className="mt-1.5 text-xs text-faint">
-              Demo build — any 6 digits work until email delivery is wired up.
-            </p>
-          </Card>
-
-          <Input
-            id="otp"
-            label="Enter the code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            value={state.otp}
-            placeholder="123456"
-            onChange={(e) => patch({ otp: e.target.value.replace(/\D/g, "") })}
-          />
-
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              disabled={state.otp.length !== 6}
-              onClick={() => {
-                patch({ verified: true });
-                next();
-              }}
-            >
-              Verify and continue
-              <IconArrowRight />
-            </Button>
-            <Button variant="ghost" onClick={() => setSent(false)}>
-              Change email
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -133,6 +46,15 @@ export function ProfileStep({
   nav: StepNav;
 }) {
   const { errors } = nav;
+  /**
+   * Everything else on this step waits for Continue before showing an error,
+   * because "name is required" is obvious. "Only college domains" isn't, so the
+   * email field also checks on blur — being told after you've tabbed away beats
+   * being told at the bottom of the form.
+   */
+  const [emailTouched, setEmailTouched] = useState(false);
+  const emailError = errors.email ?? (emailTouched ? collegeEmailError(state.email) ?? undefined : undefined);
+  const emailAccepted = isCollegeEmail(state.email);
 
   return (
     <div className="space-y-7">
@@ -167,14 +89,23 @@ export function ProfileStep({
           <Input
             id="college-email"
             type="email"
+            inputMode="email"
             label="College email (optional)"
-            hint="Kept in this browser only. Verification is not required in this build."
+            hint={`Your institute address — it has to end in ${collegeSuffixList()}. Kept in this browser only; verification isn't required in this build.`}
             autoComplete="email"
+            spellCheck={false}
             value={state.email}
             placeholder="you@college.ac.in"
-            error={errors.email}
+            error={emailError}
             onChange={(e) => patch({ email: e.target.value })}
+            onBlur={() => setEmailTouched(true)}
           />
+          {emailAccepted && !emailError && (
+            <p role="status" className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-success">
+              <IconCheck className="h-3.5 w-3.5" />
+              Recognised as a college domain
+            </p>
+          )}
         </div>
       </div>
 
@@ -238,7 +169,7 @@ export function RoleStep({ state, nav }: { state: OnboardingState; nav: StepNav 
             type="button"
             aria-pressed={state.role === c.role}
             onClick={() => pick(c.role)}
-            className={`group cursor-pointer rounded-2xl border bg-surface p-6 ${state.role === c.role ? "border-primary ring-1 ring-primary/40" : "border-line"} text-left shadow-sm transition-all duration-200 outline-none hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_45px_rgb(23_26_43/0.09)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg`}
+            className={`group cursor-pointer rounded-2xl border bg-surface p-6 ${state.role === c.role ? "border-primary ring-1 ring-primary/40" : "border-line"} text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_45px_rgb(23_26_43/0.09)] ${focusRing}`}
           >
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary-soft text-primary-text transition-colors group-hover:bg-primary group-hover:text-on-primary">
               {c.icon}

@@ -128,9 +128,13 @@ export function RecapVault({
   refresh: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  // `requestRecap` resolves to null when the route is unreachable. Pressing a
+  // button and having nothing at all happen is worse than saying so.
+  const [failed, setFailed] = useState<string | null>(null);
 
   async function generate(source: RecapSource) {
     setBusy(source.id);
+    setFailed(null);
 
     // Only what was actually typed in the room. Seeded lines aren't the student's.
     const transcript = loadMessages(account, source.id).map(
@@ -148,6 +152,8 @@ export function RecapVault({
         source: draft.source,
       });
       refresh();
+    } else {
+      setFailed(source.id);
     }
     setBusy(null);
   }
@@ -167,6 +173,11 @@ export function RecapVault({
                   {source.topic}
                   {source.concept ? ` · ${source.concept}` : ""} — no recap written yet.
                 </p>
+                {failed === source.id && (
+                  <p role="alert" className="mt-1.5 text-xs font-medium text-danger">
+                    Couldn&apos;t write the recap — the model wasn&apos;t reachable. Try again in a moment.
+                  </p>
+                )}
               </div>
               <Button
                 variant="outline"
@@ -174,7 +185,11 @@ export function RecapVault({
                 onClick={() => generate(source)}
               >
                 <IconSparkle />
-                {busy === source.id ? "Writing it up…" : "Generate recap"}
+                {busy === source.id
+                  ? "Writing it up…"
+                  : failed === source.id
+                    ? "Try again"
+                    : "Generate recap"}
               </Button>
             </div>
           ))}

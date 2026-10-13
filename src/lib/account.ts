@@ -26,13 +26,15 @@ import {
 import { hasPlacementGoals } from "./placement";
 import { toProfileInput } from "./profileValidation";
 import { useCallback } from "react";
-import { doubtToFeed, loadDoubts, type AskedDoubt } from "./doubts";
-import { loadRecaps, type StoredRecap } from "./recaps";
+import { doubtToFeed, loadDoubts, moveAccount as moveDoubts, type AskedDoubt } from "./doubts";
+import { loadRecaps, moveAccount as moveRecaps, type StoredRecap } from "./recaps";
+import { moveAccount as moveMessages } from "./chat";
 import {
   addBooking,
   bookingToRequest,
   bookingToSession,
   loadBookings,
+  moveAccount as moveBookings,
   type Booking,
 } from "./bookings";
 import {
@@ -51,7 +53,7 @@ import {
   type Session,
 } from "./dashboard";
 
-export type AccountId = "me" | "demo";
+export type AccountId = "me" | "demo" | "demo-student" | "demo-mentor";
 
 const PROFILE_KEY = "mentormatch.profile.v1";
 const ACCOUNT_KEY = "mentormatch.account.v1";
@@ -162,15 +164,55 @@ export async function fetchOwnProfile(): Promise<Partial<OnboardingState> | null
   }
 }
 
+/**
+ * The sample workspace is one account wearing both hats: you're Aditya on
+ * `/dashboard` and Meera on `/mentor`, which is the only way to see both ends
+ * of a booking without a backend to carry the mentor's reply.
+ *
+ * It used to be split into `demo-student` and `demo-mentor`, and that broke the
+ * flow twice over: each id gated the other's dashboard, and each had its own
+ * booking store, so a slot taken from Meera as Aditya landed in a bucket her
+ * inbox never read. Both legacy ids now resolve here, and their stored data is
+ * folded in on first load so a request made before this fix still arrives.
+ */
+export const DEMO_ACCOUNT = "demo" as const;
+const LEGACY_DEMO_IDS = ["demo-student", "demo-mentor"] as const satisfies readonly AccountId[];
+
+export function isDemo(account: AccountId | null): boolean {
+  return account === DEMO_ACCOUNT || (account !== null && LEGACY_DEMO_IDS.includes(account as never));
+}
+
+const isLegacyDemo = (id: string | null) => id !== null && LEGACY_DEMO_IDS.includes(id as never);
+
+/**
+ * Empties both legacy buckets into the shared one. Idempotent — each store
+ * no-ops when there's nothing under the old key — so it's safe to call from
+ * either entry point, and only called when a legacy id is actually in play.
+ */
+function foldLegacyDemoStores() {
+  for (const legacy of LEGACY_DEMO_IDS) {
+    for (const move of [moveBookings, moveDoubts, moveRecaps, moveMessages]) {
+      move(legacy, DEMO_ACCOUNT);
+    }
+  }
+}
+
 export function currentAccount(): AccountId | null {
   if (typeof window === "undefined") return null;
   const value = window.localStorage.getItem(ACCOUNT_KEY);
-  return value === "me" || value === "demo" ? value : null;
+  if (value === "me" || value === DEMO_ACCOUNT) return value;
+  if (!isLegacyDemo(value)) return null;
+
+  foldLegacyDemoStores();
+  window.localStorage.setItem(ACCOUNT_KEY, DEMO_ACCOUNT);
+  return DEMO_ACCOUNT;
 }
 
 export function signIn(id: AccountId) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(ACCOUNT_KEY, id);
+  // Signing in through an old link or a stale bundle must still carry the data over.
+  if (isLegacyDemo(id)) foldLegacyDemoStores();
+  window.localStorage.setItem(ACCOUNT_KEY, isDemo(id) ? DEMO_ACCOUNT : id);
 }
 
 export function signOut() {
@@ -297,7 +339,16 @@ function demoStudent(bookings: Booking[], recaps: StoredRecap[]): StudentView {
     year: STUDENT.year,
     branch: STUDENT.branch,
     topics: STUDENT.topics,
-    sessions: [...STUDENT_SESSIONS, ...bookings.map(bookingToSession)],
+    // Yours first, newest first. The seeded sessions used to come first, which
+    // pushed the slot you had just asked for into "Coming up next" — a line of
+    // small print with no way to act on it.
+    sessions: [
+      ...bookings
+        .filter((b) => !b.seedId)
+        .map(bookingToSession)
+        .reverse(),
+      ...STUDENT_SESSIONS,
+    ],
     toRate: STUDENT_TO_RATE,
     // Yours first — a recap you just generated shouldn't hide under the samples.
     recaps: [...recaps, ...STUDENT_RECAPS],
@@ -311,7 +362,7 @@ function demoStudent(bookings: Booking[], recaps: StoredRecap[]): StudentView {
 }
 
 /** The sample account is Meera on the mentoring side, so slots taken from her land here. */
-const DEMO_MENTOR_ID = "meera";
+export const DEMO_MENTOR_ID = "meera";
 
 function demoMentor(bookings: Booking[], asked: AskedDoubt[]): MentorView {
   const week: Record<string, number> = { Mon: 2, Tue: 1, Wed: 3, Thu: 2, Fri: 1, Sat: 2, Sun: 0 };
@@ -319,11 +370,34 @@ function demoMentor(bookings: Booking[], asked: AskedDoubt[]): MentorView {
     .filter((b) => b.mentorId === DEMO_MENTOR_ID && b.status === "pending")
     .map((b) => bookingToRequest(b, STUDENT.name, STUDENT.year, STUDENT.branch));
 
+  const confirmed = bookings
+    .filter((b) => b.mentorId === DEMO_MENTOR_ID && b.status === "confirmed")
+    .map((b) => ({
+      id: b.id,
+      with: STUDENT.name,
+      year: STUDENT.year,
+      branch: STUDENT.branch,
+      topic: b.topic,
+      concept: b.concept,
+      day: b.day,
+      time: b.time,
+      length: b.length,
+      status: "confirmed" as const,
+      unread: 0,
+    }));
+
   // A doubt goes to whoever claims the subject, so only the matching ones reach you.
   const claimed = MENTOR_ME.skills.map((s) => s.topic);
   const inbox = asked
     .filter((d) => claimed.includes(d.topic))
     .map((d) => doubtToFeed(d, STUDENT.name, STUDENT.year));
+
+  const acceptedSeedIds = new Set(
+    bookings.filter((b) => b.seedId).map((b) => b.seedId)
+  );
+  const remainingMockRequests = MENTOR_REQUESTS.filter(
+    (r) => !acceptedSeedIds.has(r.id)
+  );
 
   return {
     demo: true,
@@ -334,8 +408,8 @@ function demoMentor(bookings: Booking[], asked: AskedDoubt[]): MentorView {
     week,
     weeklyHours: MENTOR_ME.weeklyHours,
     busiestDay: MENTOR_ME.busiestDay,
-    requests: [...booked, ...MENTOR_REQUESTS],
-    sessions: MENTOR_SESSIONS,
+    requests: [...booked, ...remainingMockRequests],
+    sessions: [...confirmed, ...MENTOR_SESSIONS],
     doubts: [...inbox, ...MENTOR_DOUBTS],
     stats: {
       mentorScore: MENTOR_ME.mentorScore,
@@ -355,7 +429,7 @@ export function studentView(
   bookings: Booking[] = [],
   recaps: StoredRecap[] = [],
 ): StudentView | null {
-  if (account === "demo") return demoStudent(bookings, recaps);
+  if (isDemo(account)) return demoStudent(bookings, recaps);
   if (!profile || (profile.role !== "junior" && profile.learnTopics.length === 0)) return null;
 
   return {
@@ -365,7 +439,8 @@ export function studentView(
     branch: profile.branch,
     topics: profile.learnTopics,
     // Including the one from onboarding — it's in the same store as the rest.
-    sessions: bookings.map(bookingToSession),
+    // Newest first, so the slot you just asked for is the one on top.
+    sessions: bookings.map(bookingToSession).reverse(),
     // A brand new account has nothing to rate — say so rather than invent it.
     toRate: [],
     recaps,
@@ -391,7 +466,7 @@ export function mentorView(
   bookings: Booking[] = [],
   asked: AskedDoubt[] = [],
 ): MentorView | null {
-  if (account === "demo") return demoMentor(bookings, asked);
+  if (isDemo(account)) return demoMentor(bookings, asked);
   if (!profile || (profile.role !== "mentor" && profile.teachTopics.length === 0)) return null;
 
   const findings = profile.proofStatus === "done" ? analyseRepos(profile.teachTopics) : [];

@@ -2,9 +2,7 @@
 
 import { useId, useState } from "react";
 import { IconClose, IconPlus } from "@/components/icons";
-
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { focusRing as focus } from "@/lib/focus";
 
 export function PlacementTargetField({
   id,

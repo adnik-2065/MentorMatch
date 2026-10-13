@@ -48,6 +48,24 @@ export function loadDoubts(account: AccountId): AskedDoubt[] {
   return read()[account] ?? [];
 }
 
+/** See `moveAccount` in `bookings.ts` — the same one-off sample-account merge. */
+export function moveAccount(from: AccountId, to: AccountId) {
+  const store = read();
+  const moving = store[from];
+  if (!moving?.length) {
+    if (store[from]) write({ ...store, [from]: undefined });
+    return;
+  }
+  const kept = store[to] ?? [];
+  const ids = new Set(kept.map((d) => d.id));
+  write({
+    ...store,
+    // Newest first, same as `addDoubt`.
+    [to]: [...kept, ...moving.filter((d) => !ids.has(d.id))].sort((a, b) => b.at - a.at),
+    [from]: undefined,
+  });
+}
+
 /** Two doubts asked inside the same millisecond would otherwise share an id. */
 function nextId(taken: AskedDoubt[]): string {
   const base = `dt-${Date.now().toString(36)}`;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { Badge, Button, Chip, Textarea } from "@/components/ui";
 import { IconCheck, IconStar } from "@/components/icons";
 import { RATING_TAGS, type Session } from "@/lib/dashboard";
@@ -17,6 +17,17 @@ export function RateSessionCard({ session }: { session: Session }) {
   const [sent, setSent] = useState(false);
 
   const shown = hover || rating;
+
+  /** A radiogroup is expected to move with the arrow keys, not just clicks. */
+  const onStarKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const next = Math.min(5, Math.max(1, (rating || 0) + step));
+    setRating(next);
+    setHover(0);
+    event.currentTarget.querySelector<HTMLButtonElement>(`[data-star="${next}"]`)?.focus();
+  };
 
   const toggleTag = (tag: string) =>
     setTags((t) => (t.includes(tag) ? t.filter((x) => x !== tag) : [...t, tag]));
@@ -52,14 +63,18 @@ export function RateSessionCard({ session }: { session: Session }) {
         aria-label="Rating out of 5"
         className="mt-4 flex items-center gap-1"
         onMouseLeave={() => setHover(0)}
+        onKeyDown={onStarKeyDown}
       >
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             type="button"
             role="radio"
+            data-star={n}
             aria-checked={rating === n}
             aria-label={`${n} star${n > 1 ? "s" : ""}`}
+            // Roving tab stop: one entry into the group, arrows move inside it.
+            tabIndex={rating === n || (rating === 0 && n === 1) ? 0 : -1}
             onClick={() => setRating(n)}
             onMouseEnter={() => setHover(n)}
             onFocus={() => setHover(n)}

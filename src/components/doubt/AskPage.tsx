@@ -11,9 +11,7 @@ import { studentView, useAccount } from "@/lib/account";
 import { addDoubt, type AskedDoubt } from "@/lib/doubts";
 import { MENTORS, topicGroupsFor, type Triage } from "@/lib/onboarding";
 import { requestTriage } from "@/lib/triage-client";
-
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { focusRing as focus } from "@/lib/focus";
 
 export function AskPage() {
   const { ready, account, profile, bookings, refresh } = useAccount();
@@ -84,7 +82,7 @@ export function AskPage() {
       role="student"
       name={name}
       meta={[student?.year ?? profile?.year ?? "", branch].filter(Boolean).join(" · ")}
-      demo={student?.demo ?? account === "demo"}
+      demo={student?.demo ?? account?.startsWith("demo") ?? false}
     >
       <div className="max-w-2xl">
         <h1 className="font-sans text-2xl font-semibold text-fg sm:text-3xl">Ask a doubt</h1>
@@ -159,9 +157,11 @@ export function AskPage() {
               </ChoiceGroup>
               <p aria-live="polite" className="mt-3.5 flex items-center gap-1.5 text-xs text-faint">
                 <IconUsers className="h-3.5 w-3.5" />
-                {subject
-                  ? `${listening} senior${listening === 1 ? "" : "s"} claim ${subject} right now`
-                  : "Pick one so the right seniors see it."}
+                {!subject
+                  ? "Pick one so the right seniors see it."
+                  : listening === 0
+                    ? `No listed senior claims ${subject} yet — your doubt still posts and stays open until one does.`
+                    : `${listening} senior${listening === 1 ? "" : "s"} claim${listening === 1 ? "s" : ""} ${subject} right now`}
               </p>
             </Card>
           </Section>
@@ -207,7 +207,7 @@ export function AskPage() {
       )}
 
       <p className="mt-10 border-t border-line pt-6 text-xs leading-relaxed text-faint">
-        {account === "demo"
+        {account?.startsWith("demo") ?? false
           ? "Sample account — you're Meera on the mentoring side, so a doubt in a subject she claims lands in your own feed on /mentor. It never touches your own account."
           : "Doubts are kept in this browser until the backend lands. Routing them to the seniors who claim the subject is a server job."}
       </p>

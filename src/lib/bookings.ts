@@ -11,6 +11,7 @@
 
 import type { AccountId } from "./account";
 import type { Request, Session } from "./dashboard";
+import { askedLabel } from "./doubts";
 import type { Mentor } from "./onboarding";
 
 export type Booking = {
@@ -24,6 +25,12 @@ export type Booking = {
   day: string;
   time: string;
   length: string;
+  studentName?: string;
+  studentYear?: string;
+  studentBranch?: string;
+  seedId?: string;
+  /** Epoch ms the slot was asked for — the inbox derives "12 min ago" from it. */
+  at?: number;
   /** Taking a slot is a request — the mentor has to accept before the room opens. */
   status: "pending" | "confirmed";
 };
@@ -54,12 +61,47 @@ export function loadBookings(account: AccountId): Booking[] {
   return read()[account] ?? [];
 }
 
+/**
+ * Folds one account's bookings into another and drops the old bucket. Used once
+ * to migrate the split `demo-student` / `demo-mentor` buckets into the single
+ * sample workspace, so a slot taken as the junior still reaches the mentor.
+ */
+export function moveAccount(from: AccountId, to: AccountId) {
+  const store = read();
+  const moving = store[from];
+  if (!moving?.length) {
+    if (store[from]) write({ ...store, [from]: undefined });
+    return;
+  }
+  const kept = store[to] ?? [];
+  const ids = new Set(kept.map((b) => b.id));
+  write({
+    ...store,
+    [to]: [...kept, ...moving.filter((b) => !ids.has(b.id))],
+    [from]: undefined,
+  });
+}
+
+/**
+ * Two slots taken inside the same millisecond would otherwise share an id —
+ * and a duplicate id means cancelling one cancels both, and their chat rooms
+ * collide. Checked across every bucket, because the sample buckets get merged.
+ */
+function nextId(store: Store, at: number): string {
+  const taken = new Set(Object.values(store).flat().map((booking) => booking.id));
+  const base = `bk-${at.toString(36)}`;
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+  return id;
+}
+
 export function addBooking(
   account: AccountId,
-  booking: Omit<Booking, "id" | "status">,
+  booking: Omit<Booking, "id" | "status" | "at">,
 ): Booking {
-  const saved: Booking = { ...booking, id: `bk-${Date.now().toString(36)}`, status: "pending" };
+  const at = Date.now();
   const store = read();
+  const saved: Booking = { ...booking, id: nextId(store, at), at, status: "pending" };
   write({ ...store, [account]: [...(store[account] ?? []), saved] });
   return saved;
 }
@@ -118,7 +160,8 @@ export function bookingToRequest(
     topic: booking.topic,
     doubt: booking.concept || "No details — they'll explain in the session.",
     concept: booking.concept,
-    asked: "Just now",
+    // Bookings saved before `at` existed have no timestamp to read.
+    asked: booking.at ? askedLabel(booking.at) : "Recently",
     slot: `${booking.day} ${booking.time}`,
     urgent: false,
   };

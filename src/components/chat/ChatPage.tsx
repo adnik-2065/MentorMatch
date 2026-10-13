@@ -17,9 +17,7 @@ import {
 } from "@/lib/chat";
 import { doubtToFeed } from "@/lib/doubts";
 import { requestAssistant, type AssistantTurn } from "@/lib/triage-client";
-
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { focusRing as focus } from "@/lib/focus";
 
 /** Which hat this room is — the assistant is neither. */
 function roleLabel(thread: Thread) {
@@ -30,25 +28,27 @@ function roleLabel(thread: Thread) {
 function ThreadList({
   threads,
   activeId,
+  activeRole,
   unreadFor,
   onOpen,
 }: {
   threads: Thread[];
   activeId: string | null;
+  activeRole: string | null;
   unreadFor: (thread: Thread) => number;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, role: string) => void;
 }) {
   return (
     <ul className="space-y-1.5" aria-label="Conversations">
       {threads.map((thread) => {
-        const active = thread.id === activeId;
+        const active = thread.id === activeId && thread.role === activeRole;
         const unread = unreadFor(thread);
         return (
-          <li key={thread.id}>
+          <li key={`${thread.id}-${thread.role}`}>
             <button
               type="button"
               aria-current={active ? "true" : undefined}
-              onClick={() => onOpen(thread.id)}
+              onClick={() => onOpen(thread.id, thread.role)}
               className={`w-full cursor-pointer rounded-xl border p-3.5 text-left transition-colors duration-200 ${focus} ${
                 active
                   ? "border-primary bg-primary-soft/50"
@@ -207,7 +207,7 @@ export function ChatPage() {
   const mentor = ready && account ? mentorView(account, profile, bookings, doubts) : null;
   const topics = student?.topics ?? profile?.learnTopics ?? [];
   const threads = buildThreads({
-    demo: account === "demo",
+    demo: account?.startsWith("demo") ?? false,
     learning: student?.sessions ?? [],
     mentoring: mentor?.sessions ?? [],
     doubts: mentor?.doubts ?? [],
@@ -216,8 +216,10 @@ export function ChatPage() {
   });
 
   const requested = params.get("s");
-  const active = threads.find((t) => t.id === requested) ?? threads[0] ?? null;
+  const requestedRole = params.get("as");
+  const active = threads.find((t) => t.id === requested && (!requestedRole || t.role === requestedRole)) ?? threads.find((t) => t.id === requested) ?? threads[0] ?? null;
   const activeId = active?.id ?? null;
+  const activeRole = active?.role ?? null;
 
   // Each room keeps its own history, so reload whenever the selection changes.
   useEffect(() => {
@@ -252,7 +254,7 @@ export function ChatPage() {
   const name = student?.name ?? mentor?.name ?? profile?.name?.trim() ?? "You";
   const year = student?.year ?? mentor?.year ?? "";
   const branch = student?.branch ?? mentor?.branch ?? "";
-  const meta = [year, branch].filter(Boolean).join(" ");
+  const meta = [year, branch].filter(Boolean).join(" · ");
   // Everything except the study buddy. Empty means nobody has accepted a slot yet.
   const human = threads.filter((t) => t.kind !== "assistant");
 
@@ -282,7 +284,7 @@ export function ChatPage() {
       role={active?.role ?? (student ? "student" : "mentor")}
       name={name}
       meta={meta}
-      demo={account === "demo"}
+      demo={account?.startsWith("demo") ?? false}
       unread={totalUnread}
     >
       <h1 className="font-sans text-2xl font-semibold text-fg sm:text-3xl">Chat</h1>
@@ -322,8 +324,9 @@ export function ChatPage() {
           <ThreadList
             threads={threads}
             activeId={activeId}
+            activeRole={activeRole}
             unreadFor={unreadFor}
-            onOpen={(id) => router.replace(`/chat?s=${id}`, { scroll: false })}
+            onOpen={(id, role) => router.replace(`/chat?s=${id}&as=${role}`, { scroll: false })}
           />
         </div>
 
@@ -398,7 +401,7 @@ export function ChatPage() {
       </div>
 
       <p className="mt-10 border-t border-line pt-6 text-xs leading-relaxed text-faint">
-        {account === "demo"
+        {account?.startsWith("demo")
           ? "Sample account — these transcripts are seeded so you can see a room in use. Anything you send stays in the sample account."
           : "Messages are saved in this browser; delivery and notifications arrive with the backend. Study buddy replies come from Gemini and no senior sees them."}
       </p>

@@ -1,11 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { IconStar } from "./icons";
-
-/** Shared focus treatment — never removed, only replaced with a stronger ring. */
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { focusRing as focus } from "@/lib/focus";
 
 export function Button({
   children,
@@ -16,7 +13,7 @@ export function Button({
   type = "button",
 }: {
   children: ReactNode;
-  onClick?: () => void;
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   variant?: "primary" | "outline" | "ghost";
   disabled?: boolean;
   full?: boolean;

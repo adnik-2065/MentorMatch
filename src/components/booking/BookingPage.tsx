@@ -8,9 +8,11 @@ import { DashboardGate, DashboardShell, EmptyState, Section } from "@/components
 import {
   IconArrowRight,
   IconCalendar,
+  IconCheck,
   IconClose,
   IconDot,
   IconHourglass,
+  IconPlus,
   IconSearch,
   IconShield,
   IconSparkle,
@@ -21,9 +23,7 @@ import { searchMentors } from "@/lib/dashboard";
 import { type Mentor, type Triage } from "@/lib/onboarding";
 import { requestTriage } from "@/lib/triage-client";
 import { TriageCard } from "@/components/triage/TriageCard";
-
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { focusRing as focus } from "@/lib/focus";
 
 type Slot = { day: string; time: string };
 
@@ -106,6 +106,52 @@ function MentorRow({
   );
 }
 
+/**
+ * One slot you've taken. `justAsked` is the request you sent a moment ago —
+ * worth saying "sent" rather than "awaiting", because the reassurance people
+ * want right after pressing the button is that it actually went.
+ */
+function BookingRow({ booking, justAsked }: { booking: Booking; justAsked: boolean }) {
+  const first = booking.mentorName.split(" ")[0];
+  const pending = booking.status === "pending";
+
+  return (
+    <li
+      className={`rounded-xl border p-5 ${
+        justAsked ? "border-warning/40 bg-warning-soft" : "border-line bg-surface"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {pending ? (
+          <Badge tone="warning">
+            <IconHourglass className="h-3 w-3" />
+            {justAsked ? "Request sent" : "Awaiting confirmation"}
+          </Badge>
+        ) : (
+          <Badge tone="success">
+            <IconCheck className="h-3 w-3" />
+            Confirmed
+          </Badge>
+        )}
+        <Badge>{booking.topic}</Badge>
+      </div>
+
+      <p className="mt-3 font-sans text-base font-semibold text-fg">
+        {booking.day}, {booking.time} · {booking.mentorName}
+      </p>
+      {booking.concept && (
+        <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-muted">{booking.concept}</p>
+      )}
+
+      <p className="mt-2 max-w-[58ch] text-xs leading-relaxed text-faint">
+        {pending
+          ? `Still waiting on ${first} to accept. The slot is held for you until then, and chat opens the moment they say yes.`
+          : `${first} accepted — the room is open in chat.`}
+      </p>
+    </li>
+  );
+}
+
 export function BookingPage() {
   const { ready, account, profile, bookings, refresh } = useAccount();
   const params = useSearchParams();
@@ -115,7 +161,8 @@ export function BookingPage() {
   const [doubt, setDoubt] = useState("");
   const [triage, setTriage] = useState<Triage | null>(null);
   const [reading, setReading] = useState(false);
-  const [confirmed, setConfirmed] = useState<Booking | null>(null);
+  const [justAskedId, setJustAskedId] = useState<string | null>(null);
+  const [browsing, setBrowsing] = useState(false);
 
   const student = ready && account ? studentView(account, profile, bookings) : null;
   const topics = student?.topics ?? profile?.learnTopics ?? [];
@@ -123,6 +170,14 @@ export function BookingPage() {
   const name = student?.name ?? profile?.name?.trim() ?? "You";
 
   const results = useMemo(() => searchMentors(query, { topics, branch }), [query, topics, branch]);
+
+  const pending = bookings.filter((b) => b.status === "pending");
+  /**
+   * Anything already taken makes the status the landing view: arriving here with
+   * a request nobody has answered yet and being shown a bare search box reads
+   * like the first one never happened. Browsing is the explicit opt-in.
+   */
+  const showStatus = !browsing && bookings.length > 0;
 
   // A "Book" link from the dashboard lands on that mentor — scroll past the rest.
   const preselect = params.get("mentor");
@@ -166,15 +221,17 @@ export function BookingPage() {
       length: "45 min",
     });
 
-    setConfirmed(booking);
+    setJustAskedId(booking.id);
+    setBrowsing(false);
     refresh();
   }
 
-  function reset() {
-    setConfirmed(null);
+  function bookAnother() {
+    setJustAskedId(null);
     setPicked(null);
     setDoubt("");
     setTriage(null);
+    setBrowsing(true);
   }
 
   async function read() {
@@ -188,8 +245,8 @@ export function BookingPage() {
     <DashboardShell
       role="student"
       name={name}
-      meta={[student?.year ?? profile?.year ?? "", branch].filter(Boolean).join(" ")}
-      demo={student?.demo ?? account === "demo"}
+      meta={[student?.year ?? profile?.year ?? "", branch].filter(Boolean).join(" · ")}
+      demo={student?.demo ?? account?.startsWith("demo") ?? false}
     >
       <div className="max-w-2xl">
         <h1 className="font-sans text-2xl font-semibold text-fg sm:text-3xl">Book a session</h1>
@@ -199,40 +256,83 @@ export function BookingPage() {
         </p>
       </div>
 
-      {confirmed ? (
-        <Card className="mt-8 border-warning/30 bg-warning-soft">
-          <Badge tone="warning">
-            <IconHourglass className="h-3 w-3" />
-            Request sent
-          </Badge>
-          <p className="mt-3 font-sans text-xl font-semibold text-fg">
-            {confirmed.day}, {confirmed.time} · {confirmed.mentorName}
-          </p>
-          <p className="mt-1.5 text-sm text-muted">
-            {confirmed.topic}
-            {confirmed.concept ? ` — ${confirmed.concept}` : ""}
-          </p>
-          <p className="mt-3 max-w-[58ch] text-xs leading-relaxed text-faint">
-            {confirmed.mentorName.split(" ")[0]} has to accept before the session is on. The slot is
-            held for you until then, and chat opens the moment they say yes — most seniors reply the
-            same day.
-          </p>
+      {showStatus ? (
+        <div className="mt-8 space-y-5">
+          <Card className="border-primary/25 bg-primary-soft/40">
+            <p className="font-sans text-lg font-semibold text-fg">
+              {justAskedId
+                ? pending.length > 1
+                  ? `Request sent — you've now booked ${pending.length} sessions`
+                  : "Request sent — you've booked a session"
+                : pending.length > 0
+                  ? `You've already booked ${pending.length === 1 ? "a session" : `${pending.length} sessions`}`
+                  : "You already have a session booked"}
+            </p>
+            <p className="mt-1.5 max-w-[60ch] text-sm leading-relaxed text-muted">
+              {pending.length > 0
+                ? `${pending.length === 1 ? "It's" : "They're"} still pending — ${
+                    pending.length === 1 ? "the senior hasn't" : "the seniors haven't"
+                  } accepted yet, so there's no room to join until they do. Most reply the same day. Asking someone else in the meantime is fine.`
+                : "It's confirmed and the room is open in chat. You can book another whenever you need one."}
+            </p>
 
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link
-              href="/dashboard"
-              className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover ${focus}`}
-            >
-              Go to dashboard
-              <IconArrowRight />
-            </Link>
-            <Button variant="ghost" onClick={reset}>
-              Ask someone else too
-            </Button>
-          </div>
-        </Card>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button onClick={bookAnother}>
+                <IconPlus />
+                Book another session
+              </Button>
+              <Link
+                href="/dashboard"
+                className={`inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-5 text-sm font-medium text-fg transition-colors duration-200 hover:bg-inset ${focus}`}
+              >
+                Go to dashboard
+                <IconArrowRight />
+              </Link>
+            </div>
+          </Card>
+
+          <Section
+            title="Your sessions"
+            action={
+              <span className="text-xs text-faint">
+                {pending.length > 0 && `${pending.length} awaiting`}
+                {pending.length > 0 && bookings.length > pending.length && " · "}
+                {bookings.length > pending.length &&
+                  `${bookings.length - pending.length} confirmed`}
+              </span>
+            }
+          >
+            <ul className="space-y-3">
+              {bookings.map((booking) => (
+                <BookingRow
+                  key={booking.id}
+                  booking={booking}
+                  justAsked={booking.id === justAskedId}
+                />
+              ))}
+            </ul>
+          </Section>
+        </div>
       ) : (
         <>
+          {pending.length > 0 && (
+            <Card className="mt-8 border-warning/30 bg-warning-soft">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                <p className="max-w-[58ch] text-sm leading-relaxed text-muted">
+                  <span className="font-medium text-fg">
+                    You already have {pending.length}{" "}
+                    {pending.length === 1 ? "request" : "requests"} waiting.
+                  </span>{" "}
+                  Taking another slot is fine — the ones you&apos;re holding stay held.
+                </p>
+                <Button variant="ghost" onClick={() => setBrowsing(false)}>
+                  <IconHourglass className="h-3.5 w-3.5" />
+                  View requests
+                </Button>
+              </div>
+            </Card>
+          )}
+
           <div className="mt-8 space-y-3">
             <label htmlFor="mentor-search" className="sr-only">
               Search by subject, branch or mentor name
@@ -355,7 +455,7 @@ export function BookingPage() {
       )}
 
       <p className="mt-10 border-t border-line pt-6 text-xs leading-relaxed text-faint">
-        {account === "demo"
+        {account?.startsWith("demo") ?? false
           ? "Sample account — anything you book here stays inside the sample account and never touches your own."
           : "Bookings are saved in this browser until the backend lands. Slots come from what each mentor published."}
       </p>
