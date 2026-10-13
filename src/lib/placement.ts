@@ -84,7 +84,7 @@ export function normalizeLabel(value: string) {
 }
 
 export function companyKey(value: string) {
-  const words = normalizeLabel(value).split(" ").filter(Boolean);
+  const words = normalizeLabel(value.trim().replace(/\.com$/i, "")).split(" ").filter(Boolean);
   while (words.length > 1 && COMPANY_SUFFIXES.has(words[words.length - 1])) words.pop();
   const key = words.join(" ");
   return COMPANY_ALIASES[key] ?? key;

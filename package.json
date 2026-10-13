@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "db:migrate": "node scripts/db-migrate.mjs"
+    "test:pg": "node --env-file=.env.local ./node_modules/vitest/vitest.mjs run",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:local:setup": "node scripts/local-postgres.mjs setup",
+    "db:local:start": "node scripts/local-postgres.mjs start",
+    "db:local:stop": "node scripts/local-postgres.mjs stop"
   },
   "dependencies": {
     "next": "16.3.6",

@@ -23,6 +23,7 @@ describe("normalization", () => {
   it("treats common company spellings as the same company", () => {
     expect(companyKey("Google LLC")).toBe(companyKey("google"));
     expect(companyKey("L&T")).toBe(companyKey("Larsen & Toubro"));
+    expect(companyKey("Amazon.com")).toBe(companyKey("Amazon"));
   });
 
   it("treats position aliases and seniority as the same position", () => {

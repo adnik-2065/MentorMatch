@@ -406,7 +406,7 @@ All of it is per account, in `localStorage`: bookings under `mentormatch.booking
 
 ### Environment
 
-Copy the example and fill in the settings you use:
+For the project-local PostgreSQL setup below, the setup command creates `.env.local` for you. If you use your own PostgreSQL server, copy the example and fill in the settings you use:
 
 ```bash
 cp .env.example .env.local
@@ -425,15 +425,16 @@ GEMINI_MODEL="gemini-3.5-flash"   # optional — first in the fallback chain
 
 ### Database setup
 
-Any Postgres 13+ works (local, Docker, Neon, Supabase). For a local throwaway database:
+For local testing on Ubuntu 24.04, run:
 
 ```bash
-docker run --name mentormatch-db -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=mentormatch -p 5432:5432 -d postgres:16
-echo 'DATABASE_URL="postgresql://postgres:dev@localhost:5432/mentormatch"' > .env.local
-npm run db:migrate      # applies db/schema.sql; safe to re-run
+npm run db:local:setup
+npm run dev
 ```
 
-`db:migrate` uses `DATABASE_URL` from your shell, falling back to `.env.local`.
+The setup command downloads PostgreSQL 16 into the ignored `.local-postgres/` directory, creates a password-protected database listening only on `127.0.0.1:5432`, writes the generated connection URLs to the ignored `.env.local`, and applies `db/schema.sql`. It needs no Docker or administrator access. The data stays in `.local-postgres/data` across restarts. After reboot, use `npm run db:local:start`; use `npm run db:local:stop` to stop it. Run `npm run db:migrate` after schema changes.
+
+Other Postgres 13+ servers also work by setting `DATABASE_URL` in `.env.local` or the shell. `db:migrate` uses the shell value first, then `.env.local`.
 
 ### Backend: profiles, placement goals, and matching
 
@@ -466,7 +467,7 @@ Placement season is stored and shown but doesn't affect ranking.
 
 ```bash
 npm test                                          # Vitest: matching, validation, API, flow, onboarding UI
-TEST_DATABASE_URL="postgresql://…/mentormatch_test" npm test   # also runs the Postgres integration test
+npm run test:pg                                   # also runs the Postgres integration test against the local test database
 ```
 
 The Postgres test applies the schema and **truncates** `profiles`, so point it at a throwaway database.
