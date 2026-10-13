@@ -60,7 +60,6 @@ export default function Home() {
           <p className="mt-6 max-w-xl text-lg leading-8 text-muted">Go beyond generic tutor listings. MentorMatch understands your blocker, explains every match, and helps you book a senior who has already solved it.</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/onboarding" className={`inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-on-primary shadow-[0_12px_28px_rgb(var(--primary-shadow)/0.24)] transition-transform hover:-translate-y-0.5 hover:bg-primary-hover ${focus}`}>Create your workspace <IconArrowRight /></Link>
-            <Link href="/discover" className={`inline-flex min-h-12 items-center gap-2 rounded-xl border border-line-strong bg-surface px-6 text-sm font-semibold text-fg shadow-sm hover:border-primary/30 hover:bg-primary-soft/40 ${focus}`}><IconSearch /> Explore mentors</Link>
           </div>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs font-medium text-faint">
             <span className="flex items-center gap-1.5"><IconCheck className="text-success" /> No OTP setup</span>

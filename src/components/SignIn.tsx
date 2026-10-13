@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui";
-import { IconArrowRight, IconGraduation, IconSparkle, IconTeach } from "@/components/icons";
+import { IconArrowRight, IconGraduation, IconHome, IconSparkle, IconTeach } from "@/components/icons";
 import { DEMO_ACCOUNT, signIn, useAccount, type AccountId } from "@/lib/account";
 import { focusRing as focus } from "@/lib/focus";
 
@@ -112,7 +112,20 @@ export function SignIn() {
         </div>
       </div>
 
-      <p className="mt-10 flex items-start gap-2.5 border-t border-line pt-6 text-xs leading-relaxed text-faint">
+      <div className="mt-8 border-t border-line pt-6">
+        <Link
+          href="/"
+          className={`inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-5 text-sm font-medium text-fg transition-colors duration-200 hover:bg-inset ${focus}`}
+        >
+          <IconHome />
+          Go to main page
+        </Link>
+        <p className="mt-2 max-w-[54ch] text-xs leading-relaxed text-faint">
+          Head back to the landing page to start onboarding and create a new profile.
+        </p>
+      </div>
+
+      <p className="mt-8 flex items-start gap-2.5 border-t border-line pt-6 text-xs leading-relaxed text-faint">
         <span className="mt-0.5 shrink-0 text-primary-text">
           <IconSparkle className="h-3.5 w-3.5" />
         </span>
