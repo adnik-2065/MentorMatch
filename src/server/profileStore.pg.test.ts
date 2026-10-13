@@ -85,4 +85,25 @@ describe.skipIf(!url)("pgProfileStore (Postgres)", () => {
     ]);
     expect(mentors[0]).not.toHaveProperty("college");
   });
+
+  it("shows identical mentor profiles once while preserving both owner records", async () => {
+    const store = pgProfileStore(pool);
+    const profile = input({
+      role: "mentor", name: "Vedant", college: "IIIT Kottayam", year: "4th Year", branch: "CSE",
+      teachTopics: ["Machine Learning"], availability: { Tue: ["10 AM"] },
+    });
+    const firstOwner = hashOwnerToken(newOwnerToken());
+    const secondOwner = hashOwnerToken(newOwnerToken());
+    await store.saveForOwner(firstOwner, profile);
+    await store.saveForOwner(secondOwner, profile);
+
+    expect((await store.listMentors()).filter((mentor) => mentor.name === "Vedant")).toHaveLength(1);
+    expect(await store.findByOwner(firstOwner)).not.toBeNull();
+    expect(await store.findByOwner(secondOwner)).not.toBeNull();
+
+    await store.saveForOwner(hashOwnerToken(newOwnerToken()), {
+      ...profile, teachTopics: ["Docker"],
+    });
+    expect((await store.listMentors()).filter((mentor) => mentor.name === "Vedant")).toHaveLength(2);
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, StepHeading } from "@/components/ui";
 import { IconArrowRight, IconCheck, IconHourglass, IconShield } from "@/components/icons";
@@ -57,6 +57,7 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
   const isMentor = state.role === "mentor";
 
   const [sync, setSync] = useState<SyncStatus>({ status: "saving" });
+  const initialSaveStarted = useRef(false);
 
   const save = useCallback(() => {
     setSync({ status: "saving" });
@@ -66,6 +67,8 @@ export function CompleteStep({ state, onReset }: { state: OnboardingState; onRes
   // Reaching this step is what creates the account — the dashboards read the browser copy,
   // and the server copy is what other users are matched against.
   useEffect(() => {
+    if (initialSaveStarted.current) return;
+    initialSaveStarted.current = true;
     saveProfile(state);
     save();
   }, [state, save]);

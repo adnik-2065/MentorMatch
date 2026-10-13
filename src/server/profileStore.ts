@@ -181,13 +181,25 @@ async function saveForOwner(pool: Pool, ownerHash: string, input: ProfileInput):
 
 async function listMentors(db: Queryable): Promise<Mentor[]> {
   const { rows } = await db.query(
-    `select p.id, p.name, p.year, p.branch, p.teach_topics, p.availability, ${EXPERIENCE_JSON} as experience
+    `select p.id, p.name, p.college, p.year, p.branch, p.teach_topics, p.availability, ${EXPERIENCE_JSON} as experience
        from profiles p
       where p.role = 'mentor' and cardinality(p.teach_topics) > 0
       order by p.updated_at desc
       limit 200`,
   );
+  const seenProfiles = new Set<string>();
   return rows
+    .filter((row) => {
+      // Two first-time saves can arrive before the browser receives its owner cookie.
+      // Keep both owner records accessible, but show identical profiles once.
+      const identity = JSON.stringify([
+        row.name.trim().toLowerCase(), row.college.trim().toLowerCase(), row.year, row.branch,
+        row.teach_topics, slotsFrom(row.availability ?? {}), row.experience,
+      ]);
+      if (seenProfiles.has(identity)) return false;
+      seenProfiles.add(identity);
+      return true;
+    })
     .map(
       (row): Mentor => ({
         id: row.id,
