@@ -10,5 +10,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],
+    // Each component file spins up its own jsdom. The default 5s is enough
+    // when the machine is idle and not when it isn't, which reads as a flaky
+    // suite rather than a busy laptop.
+    testTimeout: 20_000,
   },
 });

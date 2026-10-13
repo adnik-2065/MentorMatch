@@ -9,10 +9,13 @@
 
 import { MENTORS, type Mentor } from "./onboarding";
 
-export type SessionStatus = "confirmed" | "awaiting-rating" | "completed";
+/** "pending" means the junior took a slot but the mentor hasn't accepted it yet. */
+export type SessionStatus = "pending" | "confirmed" | "awaiting-rating" | "completed";
 
 export type Session = {
   id: string;
+  /** Set when the other person is a listed mentor — lets the card link back to booking. */
+  mentorId?: string;
   /** The other person in the session. */
   with: string;
   year: string;
@@ -29,6 +32,8 @@ export type Session = {
 
 export type Request = {
   id: string;
+  /** Set when the request came from a real booking, so accepting can confirm it. */
+  bookingId?: string;
   from: string;
   year: string;
   branch: string;
@@ -59,6 +64,12 @@ export type Recap = {
   date: string;
   tasks: number;
   done: number;
+  /** What the session covered. Written by `/api/recap`; absent on the samples. */
+  points?: string[];
+  /** The practice tasks `tasks`/`done` count — one line each. */
+  nextSteps?: string[];
+  /** Which side wrote it, so the card can say so. */
+  source?: "ai" | "offline";
 };
 
 /* ---------------------------------- Student --------------------------------- */
@@ -77,6 +88,7 @@ export const STUDENT = {
 export const STUDENT_SESSIONS: Session[] = [
   {
     id: "s1",
+    mentorId: "meera",
     with: "Meera J.",
     year: "4th Year",
     branch: "Civil",
@@ -90,6 +102,7 @@ export const STUDENT_SESSIONS: Session[] = [
   },
   {
     id: "s2",
+    mentorId: "vikram",
     with: "Vikram D.",
     year: "3rd Year",
     branch: "Mechanical",
@@ -107,6 +120,7 @@ export const STUDENT_SESSIONS: Session[] = [
 export const STUDENT_TO_RATE: Session[] = [
   {
     id: "s0",
+    mentorId: "meera",
     with: "Meera J.",
     year: "4th Year",
     branch: "Civil",
@@ -163,6 +177,36 @@ export function recommendedFor(topics: string[], branch: string): Mentor[] {
       return b.rating - a.rating;
     })
     .slice(0, 3);
+}
+
+/**
+ * The booking page's mentor list — `GET /api/mentors?q=`.
+ *
+ * Same ranking as `recommendedFor`, but over everyone rather than the top
+ * three, and with a text filter across name, subject and branch.
+ */
+export function searchMentors(
+  query: string,
+  { topics = [], branch = "" }: { topics?: string[]; branch?: string } = {},
+): Mentor[] {
+  const q = query.trim().toLowerCase();
+  const matches = (m: Mentor) =>
+    !q ||
+    m.name.toLowerCase().includes(q) ||
+    m.branch.toLowerCase().includes(q) ||
+    m.skills.some((s) => s.toLowerCase().includes(q));
+
+  return MENTORS.filter(matches).sort((a, b) => {
+    const aHas = a.skills.some((s) => topics.includes(s)) ? 1 : 0;
+    const bHas = b.skills.some((s) => topics.includes(s)) ? 1 : 0;
+    if (aHas !== bHas) return bHas - aHas;
+
+    const aBranch = a.branch === branch ? 1 : 0;
+    const bBranch = b.branch === branch ? 1 : 0;
+    if (aBranch !== bBranch) return bBranch - aBranch;
+
+    return b.rating - a.rating;
+  });
 }
 
 /* ---------------------------------- Mentor ---------------------------------- */

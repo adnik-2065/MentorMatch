@@ -7,7 +7,9 @@ import { LearnTopicsStep, MatchStep, PlacementGoalsStep, StuckStep } from "./Jun
 import { AvailabilityStep, SkillProofStep, TeachTopicsStep } from "./MentorSteps";
 import { CompleteStep } from "./CompleteStep";
 import type { StepNav } from "./StepActions";
+import Link from "next/link";
 import { IconArrowLeft } from "@/components/icons";
+import { focusRing } from "@/lib/focus";
 import { initialState, type OnboardingState } from "@/lib/onboarding";
 import {
   canJump,
@@ -113,7 +115,8 @@ export function OnboardingDashboard() {
     <div className="min-h-screen bg-bg">
       <header className="border-b border-line bg-surface/90 backdrop-blur-xl">
         <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-3 px-5 sm:px-8">
-          <a href="/" className="font-sans text-base font-semibold text-fg">MentorMatch</a>
+          {/* A plain <a> here threw away everything typed so far on an accidental click. */}
+          <Link href="/" className={`rounded font-sans text-base font-semibold text-fg ${focusRing}`}>MentorMatch</Link>
           <span className="rounded-full bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary-text">No verification required · prototype mode</span>
         </div>
       </header>
@@ -126,7 +129,7 @@ export function OnboardingDashboard() {
           role={state.role}
         />
 
-        <main className="min-w-0 flex-1 rounded-3xl border border-line bg-surface p-5 shadow-[0_24px_70px_rgb(23_26_43/0.07)] sm:p-9 lg:p-11">
+        <main id="main-content" className="min-w-0 flex-1 rounded-3xl border border-line bg-surface p-5 shadow-[0_24px_70px_rgb(23_26_43/0.07)] sm:p-9 lg:p-11">
           <p aria-live="polite" className="sr-only">
             Step {index + 1} of {steps.length}: {step.label}
             {step.optional ? " (optional)" : ""}

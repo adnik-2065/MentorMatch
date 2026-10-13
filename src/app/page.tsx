@@ -10,9 +10,31 @@ import {
   IconSparkle,
   IconStar,
 } from "@/components/icons";
+import { focusRing as focus } from "@/lib/focus";
 
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+/** The five steps, start to finish. Each one is a real surface, not a mockup. */
+const steps = [
+  {
+    title: "Describe your doubt",
+    body: "Type the problem or paste the error log. No slot to book, no form to fill.",
+  },
+  {
+    title: "AI reads it",
+    body: "Gemini names the subject and the concept gap underneath the symptom, plus what to read next.",
+  },
+  {
+    title: "Get matched",
+    body: "Seniors who've proven that subject, ranked by rating and who's free soonest.",
+  },
+  {
+    title: "Learn in a session",
+    body: "One room per session and per doubt — paste code, ask the follow-up, no scheduling ping-pong.",
+  },
+  {
+    title: "Recap & progress",
+    body: "A written recap of what you covered and two or three practice tasks you can tick off.",
+  },
+];
 
 export default function Home() {
   return (
@@ -30,7 +52,7 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="relative mx-auto grid max-w-7xl gap-14 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-28">
+      <section id="main-content" className="relative mx-auto grid max-w-7xl gap-14 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-28">
         <div aria-hidden="true" className="absolute -left-40 top-10 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
         <div className="relative">
           <p className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary-text"><IconSparkle className="h-3.5 w-3.5" /> Built for campus learning</p>
@@ -57,8 +79,8 @@ export default function Home() {
               <div className="mt-5 flex items-center gap-3 rounded-xl border border-line bg-surface p-3 text-sm text-faint"><IconSearch /> Describe your blocker, not just the subject</div>
             </div>
             <div className="space-y-3 p-2 pt-4 sm:p-4">
-              <PreviewMentor rank="01" name="Aarav S." meta="3rd Year · CSE" score="94" online />
-              <PreviewMentor rank="02" name="Nisha R." meta="4th Year · IT" score="88" />
+              <PreviewMentor rank="01" name="Aarav S." meta="3rd Year · CSE" rating="4.9" score="94" online />
+              <PreviewMentor rank="02" name="Nisha R." meta="4th Year · IT" rating="4.8" score="88" />
             </div>
           </div>
           <div className="absolute -bottom-6 -left-4 hidden rounded-2xl border border-line bg-surface p-4 shadow-xl sm:block">
@@ -75,16 +97,45 @@ export default function Home() {
           <Feature icon={<IconCalendar />} title="From blocker to booking" body="Compare open slots and confirm a session without leaving the matching flow." />
         </div>
       </section>
+      <section className="mx-auto max-w-7xl border-t border-line px-5 py-14 sm:px-8">
+        <h2 className="font-sans text-2xl font-semibold text-fg">From blocker to progress</h2>
+        <p className="mt-1.5 max-w-[56ch] text-sm leading-relaxed text-muted">
+          From a pasted error to something you can practise, in five steps.
+        </p>
+
+        <ol className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {steps.map((step, i) => (
+            <li key={step.title} className="flex gap-4">
+              <span
+                aria-hidden="true"
+                className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft font-sans text-sm font-semibold tabular-nums text-primary-text"
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0">
+                <h3 className="font-sans text-base font-semibold text-fg">{step.title}</h3>
+                <p className="mt-1 max-w-[58ch] text-sm leading-relaxed text-muted">{step.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <p className="mx-auto max-w-7xl border-t border-line px-5 py-6 text-xs leading-relaxed text-faint sm:px-8">
+        Early build — onboarding, dashboards, booking, async doubts and session chat all work on
+        browser-local data. Profiles can also sync to Postgres; triage and recaps call Gemini
+        through server API routes and fall back to offline rules when it isn&apos;t reachable.
+      </p>
     </main>
   );
 }
 
-function PreviewMentor({ rank, name, meta, score, online = false }: { rank: string; name: string; meta: string; score: string; online?: boolean }) {
+function PreviewMentor({ rank, name, meta, rating, score, online = false }: { rank: string; name: string; meta: string; rating: string; score: string; online?: boolean }) {
   return (
     <div className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-4 shadow-sm">
       <span className="text-xs font-semibold text-faint">{rank}</span>
       <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft font-sans text-sm font-bold text-primary-text">{name.split(" ").map((part) => part[0]).join("")}</span>
-      <div className="min-w-0 flex-1"><p className="flex items-center gap-2 font-sans text-sm font-semibold text-fg">{name}{online && <IconDot className="h-1.5 w-1.5 text-success" />}</p><p className="mt-0.5 text-xs text-faint">{meta}</p><p className="mt-2 flex items-center gap-1 text-[11px] text-warning"><IconStar className="h-3 w-3" /> 4.9 · Docker verified</p></div>
+      <div className="min-w-0 flex-1"><p className="flex items-center gap-2 font-sans text-sm font-semibold text-fg">{name}{online && <IconDot className="h-1.5 w-1.5 text-success" />}</p><p className="mt-0.5 text-xs text-faint">{meta}</p><p className="mt-2 flex items-center gap-1 text-[11px] text-warning"><IconStar className="h-3 w-3" /> {rating} · Docker verified</p></div>
       <div className="text-center"><p className="text-lg font-bold text-primary-text">{score}%</p><p className="text-[9px] uppercase tracking-wide text-faint">match</p></div>
     </div>
   );

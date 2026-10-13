@@ -1,21 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui";
 import {
+  IconCalendar,
   IconCompass,
   IconGraduation,
+  IconHelp,
   IconHome,
+  IconMessage,
   IconSearch,
   IconSparkle,
   IconTeach,
 } from "@/components/icons";
 import { signOut } from "@/lib/account";
-
-const focus =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+import { focusRing as focus } from "@/lib/focus";
 
 function RoleSwitch({ role }: { role: "student" | "mentor" }) {
   const tabs = [
@@ -47,12 +48,75 @@ function RoleSwitch({ role }: { role: "student" | "mentor" }) {
   );
 }
 
+/** Asking, booking and chat are shared by both hats, so they sit outside the role switch. */
+function SectionNav({ unread = 0 }: { unread?: number }) {
+  const pathname = usePathname();
+  const links = [
+    { href: "/ask", label: "Ask", icon: <IconHelp className="h-3.5 w-3.5" /> },
+    { href: "/book", label: "Book", icon: <IconCalendar className="h-3.5 w-3.5" /> },
+    { href: "/chat", label: "Chat", icon: <IconMessage className="h-3.5 w-3.5" /> },
+  ] as const;
+
+  return (
+    <nav aria-label="Sections" className="flex items-center gap-1">
+      {links.map((link) => {
+        const active = pathname === link.href;
+        return (
+          <Link
+            key={link.href}
+            href={link.href}
+            aria-current={active ? "page" : undefined}
+            className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm transition-colors duration-200 ${focus} ${
+              active ? "bg-inset font-medium text-fg" : "text-muted hover:bg-inset hover:text-fg"
+            }`}
+          >
+            {link.icon}
+            {link.label}
+            {link.href === "/chat" && unread > 0 && (
+              <span className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold text-on-primary tabular-nums">
+                {unread}
+              </span>
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
+ * The search field promises ⌘K, so it has to answer to it. Returns the label
+ * for the key hint — Ctrl everywhere that isn't a Mac.
+ */
+function useSearchShortcut(onTrigger: () => void) {
+  const [mac, setMac] = useState(false);
+
+  useEffect(() => {
+    setMac(/Mac|iPhone|iPad/.test(navigator.userAgent));
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey)) return;
+      event.preventDefault();
+      onTrigger();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onTrigger]);
+
+  return mac ? "⌘ K" : "Ctrl K";
+}
+
 export function DashboardShell({
   role,
   name,
   meta,
   demo = false,
   active = "dashboard",
+  unread = 0,
+  /** Percent complete and the next thing to fill in. Omit and the card is hidden. */
+  profileStrength,
   children,
 }: {
   role: "student" | "mentor";
@@ -60,6 +124,8 @@ export function DashboardShell({
   meta: string;
   demo?: boolean;
   active?: "dashboard" | "discover";
+  unread?: number;
+  profileStrength?: { percent: number; next: string | null };
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -70,6 +136,7 @@ export function DashboardShell({
       .join("")
       .slice(0, 2) || "?";
   const dashboardHref = role === "mentor" ? "/mentor" : "/dashboard";
+  const searchKeys = useSearchShortcut(() => router.push("/discover"));
   const nav = [
     { key: "dashboard", label: "Overview", href: dashboardHref, icon: <IconHome /> },
     { key: "discover", label: "Find a mentor", href: "/discover", icon: <IconCompass /> },
@@ -112,19 +179,42 @@ export function DashboardShell({
               Edit profile
             </Link>
           </nav>
-        </div>
-
-        <div className="mt-auto hidden px-4 pb-5 lg:block">
-          <div className="rounded-2xl border border-primary/10 bg-gradient-to-br from-primary-soft to-surface p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-bold text-fg">Profile strength</p>
-              <span className="text-xs font-bold text-primary-text">76%</span>
-            </div>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-line"><div className="h-full w-3/4 rounded-full bg-primary" /></div>
-            <p className="mt-3 text-[11px] leading-5 text-muted">A complete profile earns stronger, more relevant matches.</p>
-            <Link href="/onboarding" className="mt-3 inline-flex text-xs font-bold text-primary-text">Complete profile →</Link>
+          <div className="mt-3 border-t border-line pt-3">
+            <SectionNav unread={unread} />
           </div>
         </div>
+
+        {/* Only shown for a real profile — there's nothing honest to measure otherwise. */}
+        {profileStrength && (
+          <div className="mt-auto hidden px-4 pb-5 lg:block">
+            <div className="rounded-2xl border border-primary/10 bg-gradient-to-br from-primary-soft to-surface p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-bold text-fg">Profile strength</p>
+                <span className="text-xs font-bold tabular-nums text-primary-text">{profileStrength.percent}%</span>
+              </div>
+              <div
+                role="progressbar"
+                aria-valuenow={profileStrength.percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Profile strength"
+                className="mt-3 h-1.5 overflow-hidden rounded-full bg-line"
+              >
+                <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${profileStrength.percent}%` }} />
+              </div>
+              <p className="mt-3 text-[11px] leading-5 text-muted">
+                {profileStrength.next
+                  ? `Next: ${profileStrength.next.toLowerCase()}. A fuller profile earns more relevant matches.`
+                  : "Your profile is complete — matches are using everything you gave us."}
+              </p>
+              {profileStrength.next && (
+                <Link href="/onboarding" className={`mt-3 inline-flex rounded text-xs font-bold text-primary-text ${focus}`}>
+                  Complete profile →
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
       </aside>
 
       <div className="min-w-0 flex-1">
@@ -133,11 +223,15 @@ export function DashboardShell({
             <Link href="/discover" className={`hidden min-h-10 w-full max-w-md items-center gap-2.5 rounded-xl border border-line bg-bg px-3.5 text-sm text-faint transition-colors hover:border-primary/25 hover:bg-surface sm:flex ${focus}`}>
               <IconSearch className="h-4 w-4" />
               <span className="truncate">Search mentors, skills or blockers</span>
-              <span className="ml-auto rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10px] font-bold text-faint">⌘ K</span>
+              <span aria-hidden="true" className="ml-auto shrink-0 rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10px] font-bold text-faint">{searchKeys}</span>
+            </Link>
+            {/* Phones get no room for the field, but still need a way in. */}
+            <Link href="/discover" aria-label="Search mentors" className={`inline-flex min-h-10 w-10 items-center justify-center rounded-xl border border-line bg-bg text-faint hover:text-fg sm:hidden ${focus}`}>
+              <IconSearch className="h-4 w-4" />
             </Link>
 
             <div className="ml-auto flex items-center gap-3">
-              {demo && <Badge tone="warning">Demo</Badge>}
+              {demo && <Badge tone="warning">Sample account</Badge>}
               <span aria-hidden="true" className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-[var(--primary-end)] text-xs font-bold text-on-primary shadow-sm">{initials}</span>
               <span className="hidden min-w-0 sm:block">
                 <span className="block truncate text-sm font-bold text-fg">{name}</span>
@@ -146,6 +240,7 @@ export function DashboardShell({
               <button
                 type="button"
                 onClick={() => { signOut(); router.push("/signin"); }}
+                aria-label="Switch account"
                 className={`min-h-9 cursor-pointer rounded-lg px-2.5 text-xs font-semibold text-faint hover:bg-inset hover:text-fg ${focus}`}
               >
                 Switch
@@ -154,7 +249,7 @@ export function DashboardShell({
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1440px] px-5 py-7 pb-16 sm:px-8 lg:px-9 lg:py-8">{children}</main>
+        <main id="main-content" className="mx-auto w-full max-w-[1440px] px-5 py-7 pb-16 sm:px-8 lg:px-9 lg:py-8">{children}</main>
       </div>
     </div>
   );

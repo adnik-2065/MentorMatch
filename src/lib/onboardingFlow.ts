@@ -4,6 +4,7 @@
  * changes which step is shown, so going back and forward preserves input.
  */
 
+import { collegeEmailError } from "./collegeEmail";
 import type { OnboardingState, Role } from "./onboarding";
 import { LIMITS, validatePlacementSeason } from "./profileValidation";
 
@@ -45,8 +46,6 @@ export function stepsFor(role: Role | null): StepDef[] {
   return [...SHARED_STEPS, ...(role === "mentor" ? MENTOR_STEPS : role === "junior" ? JUNIOR_STEPS : [])];
 }
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /** Inline messages for the fields a step requires. Empty object = step is complete. */
 export function stepErrors(key: StepKey, state: OnboardingState): Record<string, string> {
   const errors: Record<string, string> = {};
@@ -57,9 +56,9 @@ export function stepErrors(key: StepKey, state: OnboardingState): Record<string,
     case "profile":
       if (!state.name.trim()) errors.name = "Enter your name.";
       if (!state.college.trim()) errors.college = "Enter your college.";
-      if (state.email.trim() && !EMAIL_PATTERN.test(state.email.trim())) {
-        errors.email = "Enter a valid email address, or leave this blank.";
-      }
+      // Optional in this build, but restricted to institutional domains when filled.
+      const email = collegeEmailError(state.email);
+      if (email) errors.email = email;
       if (!state.year) errors.year = "Choose your year.";
       if (!state.branch) errors.branch = "Choose your branch.";
       break;

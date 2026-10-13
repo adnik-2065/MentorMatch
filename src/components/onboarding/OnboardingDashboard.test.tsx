@@ -11,7 +11,22 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+function createStorage(): Storage {
+  const items = new Map<string, string>();
+  return {
+    get length() {
+      return items.size;
+    },
+    clear: () => items.clear(),
+    getItem: (key) => items.get(key) ?? null,
+    key: (index) => [...items.keys()][index] ?? null,
+    removeItem: (key) => items.delete(key),
+    setItem: (key, value) => items.set(key, String(value)),
+  };
+}
+
 beforeEach(() => {
+  Object.defineProperty(window, "localStorage", { configurable: true, value: createStorage() });
   window.localStorage.clear();
   // No server copy and no database — the UI must cope.
   vi.stubGlobal(
@@ -51,6 +66,43 @@ describe("OnboardingDashboard", () => {
     expect(screen.getByText("Enter your name.")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toMatch(/4 fields need attention/);
     expect(document.activeElement).toBe(screen.getByLabelText("Name"));
+  });
+
+  it("refuses a personal email domain on blur and accepts a college one", () => {
+    render(<OnboardingDashboard />);
+    click(/I need help/i);
+    const email = screen.getByLabelText(/College email/);
+
+    fireEvent.change(email, { target: { value: "asha@gmail.com" } });
+    // Nothing yet — the field hasn't been left, so the user is still typing.
+    expect(screen.queryByText(/college address/i)).toBeNull();
+
+    fireEvent.blur(email);
+    expect(screen.getByText(/gmail\.com account doesn't say which campus/i)).toBeTruthy();
+    expect(email.getAttribute("aria-invalid")).toBe("true");
+
+    fireEvent.change(email, { target: { value: "asha@iitb.ac.in" } });
+    expect(screen.getByText(/Recognised as a college domain/i)).toBeTruthy();
+    expect(email.getAttribute("aria-invalid")).toBeNull();
+  });
+
+  it("blocks Continue while the email domain is wrong", () => {
+    render(<OnboardingDashboard />);
+    click(/I need help/i);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Asha Rao" } });
+    fireEvent.change(screen.getByLabelText("College"), { target: { value: "IIT Test" } });
+    fireEvent.click(screen.getByRole("radio", { name: "2nd Year" }));
+    fireEvent.click(screen.getByRole("radio", { name: "CSE" }));
+    fireEvent.change(screen.getByLabelText(/College email/), { target: { value: "asha@mycollege.com" } });
+
+    click(/^Continue$/);
+    expect(heading()).toBe("A little context makes every match better");
+    expect(screen.getByText(/mycollege\.com isn't a college domain/i)).toBeTruthy();
+
+    // Blank is still fine — the field is optional.
+    fireEvent.change(screen.getByLabelText(/College email/), { target: { value: "" } });
+    click(/^Continue$/);
+    expect(heading()).toBe("What do you want to learn?");
   });
 
   it("keeps values when going back and forward", async () => {

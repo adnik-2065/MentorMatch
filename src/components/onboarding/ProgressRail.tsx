@@ -18,9 +18,11 @@ export function ProgressRail({
   role: "junior" | "mentor" | null;
 }) {
   const pct = Math.round((current / Math.max(1, steps.length - 1)) * 100);
+  // Matches the estimate on the role cards — two different numbers for the same
+  // flow is the kind of thing people read as sloppiness.
   const timing =
     role === "mentor"
-      ? "Around 4 minutes · evidence is optional"
+      ? "Around 10 minutes · evidence is optional"
       : role === "junior"
         ? "Around 2 minutes · optional steps can be skipped"
         : "A focused setup, tailored to your goal";
